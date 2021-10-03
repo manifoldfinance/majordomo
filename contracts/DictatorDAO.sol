@@ -406,7 +406,7 @@ contract DictatorToken is ERC20, BoringBatchable {
         return timeLeftExp / 1e28;
     }
 
-    function buy(uint16 week, address to) public payable returns (uint256) {
+    function buy(uint16 week, address to) external payable {
         require(week == currentWeek, "Wrong week");
         uint256 weekStart = startTime + currentWeek * WEEK;
         require(block.timestamp >= weekStart, "Not started");
