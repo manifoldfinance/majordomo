@@ -433,6 +433,7 @@ contract DictatorToken is ERC20, BoringBatchable {
         weekShares[week] += shares;
 
         uint256 tokensPerWeek = tokensPerWeek(currentWeek);
+        // Price is per "token ETH"; tokensPerWeek is in "token wei".
         require(
             weekShares[week].mul(1e18) <= currentPrice * tokensPerWeek,
             "Oversold"
@@ -461,6 +462,8 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 tokens =
             (userWeekShares[to][week] * tokensPerWeek(week)) /
                 weekShares[week];
+        // By int division and the fact that all tokens have been minted, the
+        // following will not underflow. TODO: check/enforce
         balanceOf[address(this)] -= tokens;
         balanceOf[to] += tokens;
         emit Transfer(address(this), to, tokens);
