@@ -422,6 +422,7 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 currentPrice = price();
         require(currentPrice > 0, "Ended");
 
+        // The above checks ensure that elapsed < WEEK
         uint256 elapsed = block.timestamp - weekStart;
         // Shares = value + part of value based on how much of the week has
         // passed (starts at 50%, to 0% at the end of the week)
@@ -440,12 +441,29 @@ contract DictatorToken is ERC20, BoringBatchable {
 
     // Conclude the auction; buyers can now get their best price:
     function nextWeek() public {
+        // TODO: Prove that we don't need to check the multiplication
         uint256 tokensPerWeek = tokensPerWeek(currentWeek);
         require(
             weekShares[currentWeek].mul(1e18) >= price() * tokensPerWeek,
             "Not fully sold"
         );
         currentWeek++;
+    }
+
+    function claimPurchase(uint16 week, address to) public {
+        // TODO: Call nextWeek() as needed?
+        require(week < currentWeek, "Not finished");
+        // Given that (check definitions)...
+        //      - price         <= WEEK**8 / 1e28 ~= 1.8 ETH,
+        //      - tokensPerWeek <= 1M             ~= 1e26 wei,
+        //      - shares        <= max_{all time}(price * tokensPerWeek)
+        // the numerator is at most 1.8e54 < 2 * 2**180:
+        uint256 tokens =
+            (userWeekShares[to][week] * tokensPerWeek(week)) /
+                weekShares[week];
+        balanceOf[address(this)] -= tokens;
+        balanceOf[to] += tokens;
+        emit Transfer(address(this), to, tokens);
     }
 
     function tokensPerWeek(uint256 week) public pure returns (uint256) {
