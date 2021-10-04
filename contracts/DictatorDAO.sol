@@ -400,8 +400,16 @@ contract DictatorToken is ERC20, BoringBatchable {
     }
 
     function price() public view returns (uint256) {
+        uint256 weekStart = startTime + currentWeek * WEEK;
+        uint256 nextWeekStart = weekStart + WEEK;
+        if (block.timestamp >= nextWeekStart) {
+            return 0;
+        }
+
         uint256 timeLeft =
-            (currentWeek + 1) * WEEK + startTime - block.timestamp;
+            block.timestamp < weekStart
+                ? WEEK
+                : nextWeekStart - block.timestamp;
         uint256 timeLeftExp = timeLeft**8; // Max is 1.8e46
         return timeLeftExp / 1e28;
     }
@@ -410,27 +418,31 @@ contract DictatorToken is ERC20, BoringBatchable {
         require(week == currentWeek, "Wrong week");
         uint256 weekStart = startTime + currentWeek * WEEK;
         require(block.timestamp >= weekStart, "Not started");
-        require(block.timestamp < weekStart + WEEK, "Ended");
-        uint256 elapsed = block.timestamp - weekStart;
-        uint256 tokensPerWeek = tokensPerWeek(currentWeek);
+
         uint256 currentPrice = price();
-        // Shares = value + part of value based on how much of the week has passed (starts at 50%, to 0% at the end of the week)
-        uint256 shares =
-            msg.value + elapsed < WEEK
-                ? ((WEEK - elapsed) * msg.value) / BONUS_DIVISOR
-                : 0;
+        require(currentPrice > 0, "Ended");
+
+        uint256 elapsed = block.timestamp - weekStart;
+        // Shares = value + part of value based on how much of the week has
+        // passed (starts at 50%, to 0% at the end of the week)
+        uint256 bonus = ((WEEK - elapsed) * msg.value) / BONUS_DIVISOR;
+        uint256 shares = msg.value + bonus;
+
         userWeekShares[to][week] += shares;
         weekShares[week] += shares;
+
+        uint256 tokensPerWeek = tokensPerWeek(currentWeek);
         require(
-            weekShares[week].mul(1e18) / currentPrice < tokensPerWeek,
+            weekShares[week].mul(1e18) <= currentPrice * tokensPerWeek,
             "Oversold"
         );
     }
 
+    // Conclude the auction; buyers can now get their best price:
     function nextWeek() public {
+        uint256 tokensPerWeek = tokensPerWeek(currentWeek);
         require(
-            weekShares[currentWeek].mul(1e18) / price() >
-                tokensPerWeek(currentWeek),
+            weekShares[currentWeek].mul(1e18) >= price() * tokensPerWeek,
             "Not fully sold"
         );
         currentWeek++;

@@ -1,5 +1,6 @@
 const { expect } = require('chai');
 const { createFixture, BN, e10 } = require('./framework');
+const { provider } = hre.ethers;
 
 describe('DictatorDAO', function () {
   let fixture;
@@ -32,9 +33,7 @@ describe('DictatorDAO', function () {
     console.log(this.dao.address);
     console.log(
       (
-        await hre.ethers.provider.getBalance(
-          '0x9e6e344f94305d36eA59912b0911fE2c9149Ed3E'
-        )
+        await provider.getBalance('0x9e6e344f94305d36eA59912b0911fE2c9149Ed3E')
       ).toString()
     );
   });
@@ -75,21 +74,39 @@ describe('DictatorDAO', function () {
     //                   t  = 604_800 - 562_341
     //                     ~=  42_500
     //
-    // That's a bit under 12 hours; so half a day to get under 1ETH:
-    const p12h = getPrice(12 * 3600);
-    it('Should get to just under 1 ETH in 12 hours', async function () {
+    // That's a little less than 12 hours, so half a day to get under 1 ETH:
+    it('Should cost a bit under 1 ETH in 12 hours', async function () {
+      const p12h = getPrice(12 * 3600);
       expect(p12h.div(e10(15))).to.equal(989);
 
-      await hre.ethers.provider.send('evm_increaseTime', [12 * 3600]);
-      await hre.ethers.provider.send('evm_mine', []);
-
-      console.log(
-        (await hre.ethers.provider.getBalance(this.carol.address))
-          .div(e10(18))
-          .toString()
-      );
+      await provider.send('evm_increaseTime', [12 * 3600]);
+      await provider.send('evm_mine', []);
 
       expect(await this.token.price()).to.equal(p12h);
+    });
+
+    // 0.001 ETH at:
+    //
+    // (t_1 - t)^8 / 10^28  = 10^15
+    //             t_1 - t  = 10^(43/8)
+    //                   t  = 604_800 - 10^5.375
+    //                     ~= 367_662
+    const p102h = getPrice(102 * 3600);
+    it('Should cost a bit over 0.001 ETH in 102 hours', async function () {
+      expect(p102h.div(e10(12))).to.equal(1015);
+
+      await provider.send('evm_increaseTime', [102 * 3600]);
+      await provider.send('evm_mine', []);
+
+      expect(await this.token.price()).to.equal(p102h);
+    });
+
+    it('Should almost sell out for 1k ETH after 102 hours', async function () {
+      await provider.send('evm_increaseTime', [102 * 3600]);
+      await provider.send('evm_mine', []);
+
+      // Alice buying for Carol
+      await expect(this.token.buy(0, this.carol.address, { value: BN(1000) }));
     });
   });
 });
