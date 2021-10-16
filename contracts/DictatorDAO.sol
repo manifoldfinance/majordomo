@@ -25,8 +25,8 @@ contract DictatorDAO is IERC20, Domain {
     DictatorToken public immutable token;
     address public operator;
 
-    mapping(address => address) userVote;
-    mapping(address => uint256) votes;
+    mapping(address => address) public userVote;
+    mapping(address => uint256) public votes;
 
     constructor(
         string memory tokenSymbol,
@@ -202,8 +202,8 @@ contract DictatorDAO is IERC20, Domain {
     }
 
     // Operator Setting
-    address pendingOperator;
-    uint256 pendingOperatorTime;
+    address public pendingOperator;
+    uint256 public pendingOperatorTime;
 
     function setOperator(address newOperator) public {
         if (newOperator != pendingOperator) {
@@ -229,11 +229,28 @@ contract DictatorDAO is IERC20, Domain {
         uint256 totalTokens = token.balanceOf(address(this));
         uint256 shares =
             totalSupply == 0 ? amount : (amount * totalSupply) / totalTokens;
+
+        // Did we change our vote? Do this while we know our previous total:
+        address currentVote = userVote[msg.sender];
+        uint256 extraVotes = shares;
+        if (currentVote != operatorVote) {
+            if (currentVote != address(0) && user.balance > 0) {
+                // TODO: Prove that this is never less than the user balance,
+                //       and remove the check.
+                votes[currentVote] = votes[currentVote].sub(user.balance);
+            }
+            extraVotes += user.balance;
+            userVote[msg.sender] = operatorVote;
+        }
+        // Save gas if we choose not to vote:
+        if (operatorVote != address(0)) {
+            votes[operatorVote] += extraVotes;
+        }
+
         user.balance += shares.to128();
         user.lockedUntil = (block.timestamp + 24 hours).to128();
         users[msg.sender] = user;
         totalSupply += shares;
-        votes[operatorVote] += shares;
 
         token.transferFrom(msg.sender, address(this), amount);
 

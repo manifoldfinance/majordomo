@@ -271,7 +271,7 @@ describe('DictatorDAO', function () {
     });
   });
 
-  describe('Staking -- Voting', function () {
+  describe('Staking and Voting', function () {
     // Derived from the last "Auction" test
     const [tEarly, tMid, tLate] = [5 * 3600, 40 * 3600, 130 * 3600];
     const [qEarly, qMid, qLate] = [
@@ -296,18 +296,15 @@ describe('DictatorDAO', function () {
       await timer.inc(WEEK);
       await this.token.nextWeek();
 
-      await this.token.claimPurchase(0, this.alice.address);
-      await this.token.claimPurchase(0, this.bob.address);
-      await this.token.claimPurchase(0, this.carol.address);
+      for (const acc of [this.alice, this.bob, this.carol]) {
+        await this.token.claimPurchase(0, acc.address);
+        await this.token.connect(acc).approve(this.dao.address, UINT256_MAX);
+      }
     });
 
     it('Should give the first staker one share per token', async function () {
       // Less than they bought, but that does not matter:
       const stakeAmount = BN(1000);
-
-      await this.token
-        .connect(this.alice)
-        .approve(this.dao.address, UINT256_MAX);
 
       await expect(
         this.dao.connect(this.alice).mint(stakeAmount, this.dirk.address)
@@ -316,6 +313,15 @@ describe('DictatorDAO', function () {
         .withArgs(this.alice.address, this.dao.address, stakeAmount)
         .to.emit(this.dao, 'Transfer')
         .withArgs(ZERO_ADDR, this.alice.address, stakeAmount);
+
+      expect(await this.dao.balanceOf(this.alice.address)).to.equal(
+        stakeAmount
+      );
+      expect(await this.dao.votes(this.dirk.address)).to.equal(stakeAmount);
+      expect(await this.dao.userVote(this.alice.address)).to.equal(
+        this.dirk.address
+      );
+      expect(await this.dao.totalSupply()).to.equal(stakeAmount);
     });
   });
 });
