@@ -86,17 +86,11 @@ contract DictatorDAO is IERC20, Domain {
 
                 address userVoteTo = userVote[to];
                 address userVoteFrom = userVote[from];
-                // If the to has no vote and no balance, copy the from vote
-                address operatorVote =
-                    toUser.balance > 0 && userVoteTo == address(0)
-                        ? userVoteTo
-                        : userVoteFrom;
 
                 users[from].balance = fromUser.balance - shares.to128(); // Underflow is checked
                 users[to].balance = toUser.balance + shares.to128(); // Can't overflow because totalSupply would be greater than 2^256-1
                 votes[userVoteFrom] -= shares;
-                votes[operatorVote] += shares;
-                userVote[to] = operatorVote;
+                votes[userVoteTo] += shares;
             }
         }
         emit Transfer(from, to, shares);
@@ -223,6 +217,7 @@ contract DictatorDAO is IERC20, Domain {
     /// math is ok, because amount, totalSupply and shares is always 0 <= amount <= 100.000.000 * 10^18
     /// theoretically you can grow the amount/share ratio, but it's not practical and useless
     function mint(uint256 amount, address operatorVote) public returns (bool) {
+        // TODO: Remove?
         require(msg.sender != address(0), "Zero address");
         User memory user = users[msg.sender];
 
@@ -234,18 +229,14 @@ contract DictatorDAO is IERC20, Domain {
         address currentVote = userVote[msg.sender];
         uint256 extraVotes = shares;
         if (currentVote != operatorVote) {
-            if (currentVote != address(0) && user.balance > 0) {
-                // TODO: Prove that this is never less than the user balance,
-                //       and remove the check.
-                votes[currentVote] = votes[currentVote].sub(user.balance);
+            if (user.balance > 0) {
+                // Safe, because the user must have added their balance before
+                votes[currentVote] -= user.balance;
+                extraVotes += user.balance;
             }
-            extraVotes += user.balance;
             userVote[msg.sender] = operatorVote;
         }
-        // Save gas if we choose not to vote:
-        if (operatorVote != address(0)) {
-            votes[operatorVote] += extraVotes;
-        }
+        votes[operatorVote] += extraVotes;
 
         user.balance += shares.to128();
         user.lockedUntil = (block.timestamp + 24 hours).to128();
@@ -255,6 +246,20 @@ contract DictatorDAO is IERC20, Domain {
         token.transferFrom(msg.sender, address(this), amount);
 
         emit Transfer(address(0), msg.sender, shares);
+        return true;
+    }
+
+    // Change your vote. Does not lock tokens.
+    function vote(address operatorVote) public returns (bool) {
+        address currentVote = userVote[msg.sender];
+        if (currentVote != operatorVote) {
+            User memory user = users[msg.sender];
+            if (user.balance > 0) {
+                votes[currentVote] -= user.balance;
+                votes[operatorVote] += user.balance;
+            }
+            userVote[msg.sender] = operatorVote;
+        }
         return true;
     }
 

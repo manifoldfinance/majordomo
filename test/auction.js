@@ -8,7 +8,7 @@ const exawei = gwei * gwei;
 const UINT256_MAX = 2n ** 256n - 1n;
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
-describe('DictatorDAO', function () {
+describe('Auction', function () {
   // Why not use evm_increaseTime? Because that one keeps the actual clock
   // ticking as well, resulting in irregularities if the seconds counter
   // happens to tick over during a test.
@@ -16,10 +16,13 @@ describe('DictatorDAO', function () {
   let timer, fixture, cmd;
   before(async function () {
     fixture = await createFixture(deployments, this, async (cmd) => {
+      const latestBlock = await provider.getBlock('latest');
       timer = (() => {
-        let first = (latest = Math.floor(new Date().getTime() / 1000));
+        // let first = (latest = Math.floor(new Date().getTime() / 1000));
+        let first = (latest = latestBlock.timestamp + 1);
         return {
           reset: () => (latest = first),
+          // NOTE: Actual passed time effectively gets subtracted from offset
           inc: (offset) =>
             provider.send('evm_setNextBlockTimestamp', [(latest += offset)]),
         };
@@ -75,7 +78,7 @@ describe('DictatorDAO', function () {
         .div(2 * WEEK)
     );
 
-  describe('Auction -- price', function () {
+  describe('Price', function () {
     it('Should start with a million tokens for sale', async function () {
       // Weeks start counting from 0 at deployment
       expect(await this.token.tokensPerWeek(0)).to.equal(BN(1_000_000));
@@ -169,7 +172,7 @@ describe('DictatorDAO', function () {
     });
   });
 
-  describe('Auction -- finalization', function () {
+  describe('Finalization', function () {
     it('Should not end early if nothing is sold', async function () {
       await expect(this.token.nextWeek()).to.be.revertedWith('Not fully sold');
     });
@@ -268,60 +271,6 @@ describe('DictatorDAO', function () {
           this.carol.address,
           BN(1_000_000).mul(qLate).div(weekShares)
         );
-    });
-  });
-
-  describe('Staking and Voting', function () {
-    // Derived from the last "Auction" test
-    const [tEarly, tMid, tLate] = [5 * 3600, 40 * 3600, 130 * 3600];
-    const [qEarly, qMid, qLate] = [
-      1485119047619047619n,
-      1380952380952380952n,
-      1113095238095238095n,
-    ];
-
-    beforeEach(async function () {
-      // TODO: Possible/easy to do multiple fixtures?
-      const one = BN(1);
-
-      await timer.inc(tEarly);
-      await this.token.buy(0, this.alice.address, { value: one });
-
-      await timer.inc(tMid - tEarly);
-      await this.token.buy(0, this.bob.address, { value: one });
-
-      await timer.inc(tLate - tMid);
-      await this.token.buy(0, this.carol.address, { value: one });
-
-      await timer.inc(WEEK);
-      await this.token.nextWeek();
-
-      for (const acc of [this.alice, this.bob, this.carol]) {
-        await this.token.claimPurchase(0, acc.address);
-        await this.token.connect(acc).approve(this.dao.address, UINT256_MAX);
-      }
-    });
-
-    it('Should give the first staker one share per token', async function () {
-      // Less than they bought, but that does not matter:
-      const stakeAmount = BN(1000);
-
-      await expect(
-        this.dao.connect(this.alice).mint(stakeAmount, this.dirk.address)
-      )
-        .to.emit(this.token, 'Transfer')
-        .withArgs(this.alice.address, this.dao.address, stakeAmount)
-        .to.emit(this.dao, 'Transfer')
-        .withArgs(ZERO_ADDR, this.alice.address, stakeAmount);
-
-      expect(await this.dao.balanceOf(this.alice.address)).to.equal(
-        stakeAmount
-      );
-      expect(await this.dao.votes(this.dirk.address)).to.equal(stakeAmount);
-      expect(await this.dao.userVote(this.alice.address)).to.equal(
-        this.dirk.address
-      );
-      expect(await this.dao.totalSupply()).to.equal(stakeAmount);
     });
   });
 });
