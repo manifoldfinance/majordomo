@@ -4,6 +4,18 @@ const {
 } = require('ethers');
 const contracts = {};
 
+const { provider } = hre.ethers;
+
+// Why not use evm_increaseTime? Because that one keeps the actual clock
+// ticking as well, resulting in irregularities if the seconds counter happens
+// to roll over during a test.
+async function incTime(offset) {
+  const { timestamp } = await provider.getBlock('latest');
+  const next = timestamp + offset;
+  await provider.send('evm_setNextBlockTimestamp', [next]);
+  return next;
+}
+
 function e10(decimals = 18) {
   return BigNumber.from('10').pow(decimals);
 }
@@ -105,4 +117,7 @@ module.exports = {
   BN,
   addr,
   createFixture,
+  keccak256,
+  abiCoder: defaultAbiCoder,
+  incTime,
 };

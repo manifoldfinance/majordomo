@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { createFixture, BN, e10 } = require('./framework');
+const { createFixture, BN, e10, incTime } = require('./framework');
 const { provider } = hre.ethers;
 
 const gwei = 1_000_000_000n;
@@ -9,21 +9,10 @@ const UINT256_MAX = 2n ** 256n - 1n;
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
 describe('Staking and Voting', function () {
-  let timer, fixture;
+  let fixture;
   before(async function () {
     // Only used once, so not really a fixture. For now.
     fixture = await createFixture(deployments, this, async (cmd) => {
-      const latestBlock = await provider.getBlock('latest');
-      timer = (() => {
-        let first = (latest = latestBlock.timestamp + 1);
-        return {
-          reset: () => (latest = first),
-          // NOTE: Actual passed time effectively gets subtracted from offset
-          inc: (offset) =>
-            provider.send('evm_setNextBlockTimestamp', [(latest += offset)]),
-        };
-      })();
-      await timer.inc(0); // Consistent start time
       await cmd.deploy(
         'dao',
         'contracts/DictatorDAO.sol:DictatorDAO',
@@ -49,16 +38,16 @@ describe('Staking and Voting', function () {
         1113095238095238095n,
       ];
 
-      await timer.inc(tEarly);
+      await incTime(tEarly);
       await this.token.buy(0, this.alice.address, { value: one });
 
-      await timer.inc(tMid - tEarly);
+      await incTime(tMid - tEarly);
       await this.token.buy(0, this.bob.address, { value: one });
 
-      await timer.inc(tLate - tMid);
+      await incTime(tLate - tMid);
       await this.token.buy(0, this.carol.address, { value: one });
 
-      await timer.inc(WEEK);
+      await incTime(WEEK);
       await this.token.nextWeek();
 
       for (const acc of [this.alice, this.bob, this.carol]) {
@@ -72,7 +61,7 @@ describe('Staking and Voting', function () {
 
   const stakeAlice = BN(1000);
   const stakeBob = BN(200);
-  const stakeCarol = BN(333_333_333, 12);
+  const stakeCarol = BN(33_333_333, 12);
 
   const total = stakeAlice.add(stakeBob).add(stakeCarol);
   const burnBob = stakeBob.div(3);
@@ -159,7 +148,7 @@ describe('Staking and Voting', function () {
 
   it('Should update vote totals on withdrawal', async function () {
     // Free Bob's stake
-    await timer.inc(25 * 3600);
+    await incTime(25 * 3600);
 
     await expect(this.dao.connect(this.bob).burn(this.fred.address, burnBob))
       .to.emit(this.dao, 'Transfer')
@@ -174,31 +163,11 @@ describe('Staking and Voting', function () {
   });
 
   it('Should update vote totals on transfer', async function () {
-    expect(await this.dao.userVote(this.alice.address)).to.equal(
-      this.dirk.address
-    );
-    expect(await this.dao.userVote(this.bob.address)).to.equal(
-      this.erin.address
-    );
-    expect(await this.dao.votes(this.erin.address)).to.equal(
-      stakeBob.sub(burnBob)
-    );
-    expect(await this.dao.votes(this.dirk.address)).to.equal(
-      stakeAlice.add(stakeCarol)
-    );
-
     await expect(
       this.dao.connect(this.alice).transfer(this.bob.address, transferAliceBob)
     )
       .to.emit(this.dao, 'Transfer')
       .withArgs(this.alice.address, this.bob.address, transferAliceBob);
-
-    expect(await this.dao.userVote(this.alice.address)).to.equal(
-      this.dirk.address
-    );
-    expect(await this.dao.userVote(this.bob.address)).to.equal(
-      this.erin.address
-    );
 
     expect(await this.dao.totalSupply()).to.equal(total.sub(burnBob));
     expect(await this.dao.votes(this.dirk.address)).to.equal(
@@ -207,5 +176,197 @@ describe('Staking and Voting', function () {
     expect(await this.dao.votes(this.erin.address)).to.equal(
       stakeBob.sub(burnBob).add(transferAliceBob)
     );
+  });
+
+  it('Should set the operator to the elected address', async function () {
+    // Dirk should have the most votes at this point; if we changed the numbers
+    // such that this is no longer true, then the test becomes inaccurate:
+    expect((await this.dao.votes(this.dirk.address)).mul(2)).to.gt(
+      await this.dao.totalSupply()
+    );
+    expect(await this.dao.operator()).to.equal(this.bob.address);
+    expect(await this.dao.pendingOperator()).to.equal(ZERO_ADDR);
+
+    await expect(this.dao.setOperator(this.alice.address)).to.be.revertedWith(
+      'Not enough votes'
+    );
+
+    const setTime = await incTime(10);
+    await this.dao.setOperator(this.dirk.address);
+
+    expect(await this.dao.operator()).to.equal(this.bob.address);
+    expect(await this.dao.pendingOperator()).to.equal(this.dirk.address);
+
+    expect(await this.dao.pendingOperatorTime()).to.equal(setTime + WEEK);
+
+    await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
+      'Not enough votes'
+    );
+    await expect(this.dao.setOperator(this.dirk.address)).to.be.revertedWith(
+      'Wait longer'
+    );
+
+    await incTime(WEEK + 1);
+    await this.dao.setOperator(this.dirk.address);
+    expect(await this.dao.operator()).to.equal(this.dirk.address);
+    expect(await this.dao.pendingOperator()).to.equal(ZERO_ADDR);
+    expect(await this.dao.pendingOperatorTime()).to.equal(0);
+  });
+
+  it('Should not count zero votes', async function () {
+    expect(await this.dao.userVote(this.alice.address)).to.equal(
+      this.dirk.address
+    );
+    const erinVotes = await this.dao.votes(this.erin.address);
+    const totalVotes = await this.dao.totalSupply();
+    expect(erinVotes.mul(2)).to.gt(totalVotes.sub(stakeAlice));
+
+    await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
+      'Not enough votes'
+    );
+
+    await this.dao.connect(this.alice).vote(this.alice.address);
+
+    await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
+      'Not enough votes'
+    );
+
+    await this.dao.connect(this.alice).vote(ZERO_ADDR);
+
+    // Since zero votes are not counted, Erin now has the majority:
+    await this.dao.setOperator(this.erin.address);
+    expect(await this.dao.operator()).to.equal(this.dirk.address);
+    expect(await this.dao.pendingOperator()).to.equal(this.erin.address);
+  });
+
+  it('Should remove operator-to-be if majority not held', async function () {
+    // Uses the results from the previous test. Sanity check:
+    expect(await this.dao.pendingOperator()).to.equal(this.erin.address);
+    const totalSupply = await this.dao.totalSupply();
+    const zeroVotes = await this.dao.votes(ZERO_ADDR);
+    expect(await this.dao.balanceOf(this.alice.address)).to.equal(zeroVotes);
+    const netVotes = totalSupply.sub(zeroVotes);
+
+    const erinVotes = await this.dao.votes(this.erin.address);
+    expect(erinVotes.mul(2)).to.gt(netVotes);
+    expect(erinVotes.mul(2)).to.lte(totalSupply);
+
+    await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
+      'Wait longer'
+    );
+
+    await this.dao.connect(this.alice).vote(this.alice.address);
+
+    // With Alice's votes now counting against her, Erin no longer has a
+    // majority. The same setOperator() method will now unseat her from the
+    // pending operator position instead:
+    await this.dao.setOperator(this.erin.address);
+    expect(await this.dao.operator()).to.equal(this.dirk.address);
+    expect(await this.dao.pendingOperator()).to.equal(ZERO_ADDR);
+  });
+
+  describe('Tribute', function () {
+    it('Should grow the token/share ratio', async function () {
+      await fixture();
+
+      // Tested previously
+      await this.dao.connect(this.alice).mint(stakeAlice, this.dirk.address);
+      await this.dao.connect(this.bob).mint(stakeBob, this.erin.address);
+
+      expect(await this.dao.balanceOf(this.alice.address)).to.equal(
+        stakeAlice
+      );
+      expect(await this.dao.balanceOf(this.bob.address)).to.equal(stakeBob);
+
+      // Free the staked tokens
+      await incTime(25 * 3600);
+
+      const staked = stakeAlice.add(stakeBob);
+      const tribute = staked.div(5);
+
+      // Carol pays "tribute" by depositing her tokens without taking any
+      // shares in return. This increases the amount of tokens that Alice and
+      // Bob get back for their shares. The tribute is 20% of the total, so we
+      // get 20% more shares back:
+      await this.token.connect(this.carol).transfer(this.dao.address, tribute);
+
+      // Alice now gets 1/5 more back:
+      await expect(
+        this.dao.connect(this.alice).burn(this.alice.address, stakeAlice)
+      )
+        .to.emit(this.dao, 'Transfer')
+        .withArgs(this.alice.address, ZERO_ADDR, stakeAlice)
+        .to.emit(this.token, 'Transfer')
+        .withArgs(
+          this.dao.address,
+          this.alice.address,
+          stakeAlice.mul(6).div(5)
+        );
+
+    });
+
+    it('Should reflect the new share price when staking', async function () {
+      // Staking more tokens now reflects the new share price:
+      await expect(
+        this.dao.connect(this.alice).mint(stakeAlice, this.dirk.address)
+      )
+        .to.emit(this.token, 'Transfer')
+        .withArgs(this.alice.address, this.dao.address, stakeAlice)
+        .to.emit(this.dao, 'Transfer')
+        .withArgs(ZERO_ADDR, this.alice.address, stakeAlice.mul(5).div(6));
+
+    });
+
+    let tokenRoundingError;
+
+    it('Should return the same amount back* (rounding)', async function () {
+      const sharesReceived = stakeAlice.mul(5).div(6);
+
+      // Need not be the same due to rounding, but should be close.
+      // One as in one wei, not one share:
+      const tokensReceived = sharesReceived.mul(6).div(5);
+      tokenRoundingError = stakeAlice.sub(tokensReceived);
+      expect(tokenRoundingError).to.gte(0);
+      expect(tokenRoundingError).to.lte(1);
+
+      await incTime(25 * 3600);
+
+      await expect(
+        this.dao.connect(this.alice).burn(this.alice.address, sharesReceived)
+      )
+        .to.emit(this.dao, 'Transfer')
+        .withArgs(this.alice.address, ZERO_ADDR, sharesReceived)
+        .to.emit(this.token, 'Transfer')
+        .withArgs(this.dao.address, this.alice.address, tokensReceived);
+    });
+
+    it('Should "compound" profits', async function () {
+      // Bob staked at the original 1:1 ratio and never withdrew. There was one
+      // 20% bump, and now another one at 30%:
+      const staked = await this.token.balanceOf(this.dao.address);
+      const tribute = staked.mul(3).div(10);
+      await this.token.connect(this.carol).transfer(this.dao.address, tribute);
+
+      // Bob's return is therefore:
+      //
+      //  1.2 * 1.3 - 1  = 56%
+      //
+      // Test the case where we withdraw only part of the stake:
+      const withdrawBob = stakeBob.div(2);
+      await expect(
+        this.dao.connect(this.bob).burn(this.bob.address, withdrawBob)
+      )
+        .to.emit(this.dao, 'Transfer')
+        .withArgs(this.bob.address, ZERO_ADDR, withdrawBob)
+        .to.emit(this.token, 'Transfer')
+        .withArgs(
+          this.dao.address,
+          this.bob.address,
+          withdrawBob.mul(156).div(100)
+        );
+
+      // ^ This happens to not have rounding errors, but it might. Deal with
+      // that. Use (more) explicit numbers instead?
+    });
   });
 });

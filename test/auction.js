@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { createFixture, BN, e10 } = require('./framework');
+const { createFixture, BN, e10, incTime } = require('./framework');
 const { provider } = hre.ethers;
 
 const gwei = 1_000_000_000n;
@@ -9,25 +9,10 @@ const UINT256_MAX = 2n ** 256n - 1n;
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
 describe('Auction', function () {
-  // Why not use evm_increaseTime? Because that one keeps the actual clock
-  // ticking as well, resulting in irregularities if the seconds counter
-  // happens to tick over during a test.
-  // TODO: Incorporate into fixture?
-  let timer, fixture, cmd;
+  let fixture, cmd;
   before(async function () {
     fixture = await createFixture(deployments, this, async (cmd) => {
       const latestBlock = await provider.getBlock('latest');
-      timer = (() => {
-        // let first = (latest = Math.floor(new Date().getTime() / 1000));
-        let first = (latest = latestBlock.timestamp + 1);
-        return {
-          reset: () => (latest = first),
-          // NOTE: Actual passed time effectively gets subtracted from offset
-          inc: (offset) =>
-            provider.send('evm_setNextBlockTimestamp', [(latest += offset)]),
-        };
-      })();
-      await timer.inc(0); // Consistent start time
       await cmd.deploy(
         'dao',
         'contracts/DictatorDAO.sol:DictatorDAO',
@@ -47,8 +32,7 @@ describe('Auction', function () {
   });
 
   beforeEach(async function () {
-    cmd = await fixture();
-    timer.reset();
+    await fixture();
   });
 
   it('Should do something', async function () {
@@ -107,7 +91,7 @@ describe('Auction', function () {
       const p12h = getPrice(12 * 3600);
       expect(p12h.div(e10(15))).to.equal(989);
 
-      await timer.inc(12 * 3600);
+      await incTime(12 * 3600);
       await provider.send('evm_mine', []);
 
       expect(await this.token.price()).to.equal(p12h);
@@ -124,14 +108,14 @@ describe('Auction', function () {
 
       // TODO: Why does this fail every so often? Suspect it is possible for a
       //       second to elapse. Find a more exact way to set the time.
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
       await provider.send('evm_mine', []);
 
       expect(await this.token.price()).to.equal(p102h);
     });
 
     it('Should sell out for ~1k ETH after 102 hours', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
 
       // There is (66 hrs) / (168 hrs) left, so we get a bonus of
       //
@@ -161,7 +145,7 @@ describe('Auction', function () {
     });
 
     it('Should reject at one past the above cutoff', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
 
       const maxCost = p102h.mul(1e6).mul(56).add(55).div(67);
       const tooMuch = maxCost.add(1);
@@ -178,7 +162,7 @@ describe('Auction', function () {
     });
 
     it('Should not end early if too little is sold', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
       const maxCost = p102h.mul(1e6).mul(56).add(55).div(67);
       await this.token.buy(0, this.carol.address, { value: maxCost.div(2) });
 
@@ -186,7 +170,7 @@ describe('Auction', function () {
     });
 
     it('Should end early if enough is sold', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
       const maxCost = p102h.mul(1e6).mul(56).add(55).div(67);
       await this.token.buy(0, this.carol.address, { value: maxCost });
 
@@ -196,13 +180,13 @@ describe('Auction', function () {
     });
 
     it('Should end if week is up, even with no buyers', async function () {
-      await timer.inc(WEEK);
+      await incTime(WEEK);
       await this.token.nextWeek();
       expect(await this.token.currentWeek()).to.equal(1);
     });
 
     it('Should let you claim once the auction is over', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
       const maxCost = p102h.mul(1e6).mul(56).add(55).div(67);
       await this.token.buy(0, this.carol.address, { value: maxCost });
       await this.token.nextWeek();
@@ -214,7 +198,7 @@ describe('Auction', function () {
     });
 
     it('Should refuse claims for unfinished auctions', async function () {
-      await timer.inc(102 * 3600);
+      await incTime(102 * 3600);
       await expect(
         this.token.claimPurchase(0, this.carol.address)
       ).to.be.revertedWith('Not finished');
@@ -236,16 +220,16 @@ describe('Auction', function () {
 
       const one = BN(1);
       // TODO: Put actual amounts in test?
-      await timer.inc(tEarly);
+      await incTime(tEarly);
       await this.token.buy(0, this.alice.address, { value: one });
 
-      await timer.inc(tMid - tEarly);
+      await incTime(tMid - tEarly);
       await this.token.buy(0, this.bob.address, { value: one });
 
-      await timer.inc(tLate - tMid);
+      await incTime(tLate - tMid);
       await this.token.buy(0, this.carol.address, { value: one });
 
-      await timer.inc(WEEK);
+      await incTime(WEEK);
       await this.token.nextWeek();
 
       await expect(this.token.claimPurchase(0, this.alice.address))
@@ -271,6 +255,25 @@ describe('Auction', function () {
           this.carol.address,
           BN(1_000_000).mul(qLate).div(weekShares)
         );
+    });
+
+    it('Should let the operator withdraw the proceeds', async function () {
+      await expect(
+        this.token
+          .connect(this.dirk)
+          .retrieveOperatorPayment(this.fred.address)
+      ).to.be.revertedWith('Not operator');
+
+      const qtyBought = BN(123);
+      await incTime(100);
+      await this.token.buy(0, this.alice.address, { value: qtyBought });
+
+      await expect(() =>
+        this.token.connect(this.bob).retrieveOperatorPayment(this.fred.address)
+      ).to.changeEtherBalances(
+        [this.token, this.fred],
+        [BN(0).sub(qtyBought), qtyBought]
+      );
     });
   });
 });

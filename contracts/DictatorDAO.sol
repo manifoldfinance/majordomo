@@ -200,15 +200,20 @@ contract DictatorDAO is IERC20, Domain {
     uint256 public pendingOperatorTime;
 
     function setOperator(address newOperator) public {
+        require(newOperator != address(0), "Zero operator");
+        uint256 netVotes = totalSupply - votes[address(0)];
         if (newOperator != pendingOperator) {
-            require(votes[newOperator] / 2 > totalSupply, "Not enough votes");
+            require(votes[newOperator] * 2 > netVotes, "Not enough votes");
             pendingOperator = newOperator;
             pendingOperatorTime = block.timestamp + 7 days;
         } else {
-            if (votes[newOperator] / 2 > totalSupply) {
+            if (votes[newOperator] * 2 > netVotes) {
                 require(block.timestamp >= pendingOperatorTime, "Wait longer");
                 operator = pendingOperator;
             }
+            // If there aren't enough votes, then the pending operator failed
+            // to maintain a majority. If there are, then they are now the
+            // operator. In either situation:
             pendingOperator = address(0);
             pendingOperatorTime = 0;
         }
@@ -327,7 +332,7 @@ contract DictatorDAO is IERC20, Domain {
         bytes memory data
     ) public returns (bytes32) {
         require(msg.sender == operator, "Operator only");
-        require(votes[operator] / 2 > totalSupply, "Not enough votes");
+        require(votes[operator] * 2 > totalSupply, "Not enough votes");
 
         bytes32 txHash = keccak256(abi.encode(target, value, data));
         uint256 eta = block.timestamp + DELAY;
@@ -356,7 +361,7 @@ contract DictatorDAO is IERC20, Domain {
         bytes memory data
     ) public payable returns (bytes memory) {
         require(msg.sender == operator, "Operator only");
-        require(votes[operator] / 2 > totalSupply, "Not enough votes");
+        require(votes[operator] * 2 > totalSupply, "Not enough votes");
 
         bytes32 txHash = keccak256(abi.encode(target, value, data));
         uint256 eta = queuedTransactions[txHash];
@@ -416,8 +421,8 @@ contract DictatorToken is ERC20, BoringBatchable {
         emit Transfer(address(0), address(this), totalSupply);
     }
 
-    modifier onlyOperator() {
-        require(msg.sender == DAO.operator(), "Not operator");
+    modifier onlyDAO() {
+        require(msg.sender == address(DAO), "Not DAO");
         _;
     }
 
@@ -516,9 +521,9 @@ contract DictatorToken is ERC20, BoringBatchable {
 
     function retrieveOperatorPayment(address to)
         public
-        onlyOperator
         returns (bool success)
     {
+        require(msg.sender == DAO.operator(), "Not operator");
         (success, ) = to.call{value: address(this).balance}("");
     }
 
@@ -608,7 +613,7 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 allocPoint,
         IERC20 poolToken_,
         IRewarder _rewarder
-    ) public onlyOperator {
+    ) public onlyDAO {
         uint256 lastRewardBlock = block.number;
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         poolToken.push(poolToken_);
@@ -639,7 +644,7 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 _allocPoint,
         IRewarder _rewarder,
         bool overwrite
-    ) public onlyOperator {
+    ) public onlyDAO {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
             _allocPoint
         );
@@ -657,7 +662,7 @@ contract DictatorToken is ERC20, BoringBatchable {
 
     /// @notice Set the `migrator` contract. Can only be called by the owner.
     /// @param _migrator The contract address to set.
-    function setMigrator(IMigratorChef _migrator) public onlyOperator {
+    function setMigrator(IMigratorChef _migrator) public onlyDAO {
         migrator = _migrator;
     }
 
