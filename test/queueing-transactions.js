@@ -9,9 +9,6 @@ const {
 } = require('./framework');
 const { provider } = hre.ethers;
 
-const gwei = 1_000_000_000n;
-const exawei = gwei * gwei;
-
 const UINT256_MAX = 2n ** 256n - 1n;
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
@@ -22,52 +19,33 @@ describe('Queueing Transactions', function () {
   before(async function () {
     // Only used once, so not really a fixture. For now.
     fixture = await createFixture(deployments, this, async (cmd) => {
-      const latestBlock = await provider.getBlock('latest');
+      // Initial supply will be owned by Alice, the first account:
+      const owners = [this.alice, this.bob, this.carol];
+      const initialBalance = BN(10_000);
+
+      await cmd.deploy(
+        'token',
+        'MockERC20',
+        initialBalance.mul(owners.length)
+      );
+
       await cmd.deploy(
         'dao',
         'contracts/DictatorDAO.sol:DictatorDAO',
         'MAJOR',
         'Majordomo',
-        'xMAJOR',
-        'xMajordomo',
+        this.token.address,
         this.bob.address
       );
-      const tokenAddress = await this.dao.token();
-      await cmd.attach(
-        'token',
-        'contracts/DictatorDAO.sol:DictatorToken',
-        tokenAddress
-      );
 
-      const one = BN(1);
+      await cmd.deploy('settings', 'MockSettings', this.dao.address);
 
-      const [tEarly, tMid, tLate] = [5 * 3600, 40 * 3600, 130 * 3600];
-      const [qEarly, qMid, qLate] = [
-        1485119047619047619n,
-        1380952380952380952n,
-        1113095238095238095n,
-      ];
-
-      await incTime(tEarly);
-      await this.token.buy(0, this.alice.address, { value: one });
-
-      await incTime(tMid - tEarly);
-      await this.token.buy(0, this.bob.address, { value: one });
-
-      await incTime(tLate - tMid);
-      await this.token.buy(0, this.carol.address, { value: one });
-
-      await incTime(WEEK);
-      await this.token.nextWeek();
-
-      for (const acc of [this.alice, this.bob, this.carol]) {
-        await this.token.claimPurchase(0, acc.address);
+      for (const acc of owners) {
+        if (acc != this.alice) {
+          await this.token.transfer(acc.address, initialBalance);
+        }
         await this.token.connect(acc).approve(this.dao.address, UINT256_MAX);
       }
-
-      // Bob is the operator
-      // const stakeBob = BN(200);
-      // const stakeCarol = BN(33_333_333, 12);
 
       // Bob is already the operator; he now also has all the votes:
       await this.dao.connect(this.alice).mint(stakeAlice, this.bob.address);
@@ -112,7 +90,7 @@ describe('Queueing Transactions', function () {
       ).to.be.revertedWith('Operator only');
     });
 
-    it('Should require the operator to have a vote majority', async function () {
+    it('Should require a majority to schedule', async function () {
       // Alice is the only one who voted. If Carol stakes as many tokens and
       // votes for someone else, Bob will no longer have a majority:
       await this.dao.connect(this.carol).mint(stakeAlice, this.erin.address);
@@ -204,6 +182,35 @@ describe('Queueing Transactions', function () {
         .withArgs(hash, target, value, data);
     });
 
+    it('Should require a majority to execute', async function () {
+      const target = this.fred.address;
+      const value = BN(1337);
+      const data = [];
+      const hash = keccak256(
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+      );
+
+      await this.dao.connect(this.bob).queueTransaction(target, value, data);
+
+      await incTime(DELAY);
+
+      // Alice is the only one who voted. If Carol stakes as many tokens and
+      // votes for someone else, Bob will no longer have a majority:
+      await this.dao.connect(this.carol).mint(stakeAlice, this.erin.address);
+
+      await expect(
+        this.dao.connect(this.bob).executeTransaction(target, value, data)
+      ).to.be.revertedWith('Not enough votes');
+    });
+
+    it('Should only execute transactions for the operator', async function () {
+      await expect(
+        this.dao
+          .connect(this.alice)
+          .executeTransaction(this.alice.address, BN(1_000_000), [])
+      ).to.be.revertedWith('Operator only');
+    });
+
     it('Should not execute an unscheduled transaction', async function () {
       // There are no scheduled transactions in the fixture.  The default "ETA"
       // is zero; this situation will therefore get interpreted as a stale
@@ -218,22 +225,28 @@ describe('Queueing Transactions', function () {
   });
 
   describe('Application - Example', function () {
-    // it('Should let the operator act on behalf of the DAO', async function () {
-    //   const target = this.token.address;
-    //   const value = 0;
-    //   // TODO: Sort out where to get this;
-    //   const data = this.token.interface.encodeFunctionData('setMigrator', [
-    //     this.fred.address,
-    //   ]);
-    //   const hash = keccak256(
-    //     abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
-    //   );
-    //   await incTime(1);
-    //   await this.dao.connect(this.bob).queueTransaction(target, value, data);
-    //   await incTime(DELAY);
-    //   expect(await this.token.migrator()).to.equal(ZERO_ADDR);
-    //   await this.dao.connect(this.bob).executeTransaction(target, value, data);
-    //   expect(await this.token.migrator()).to.equal(this.fred.address);
-    // });
+    it('Should let the operator act on behalf of the DAO', async function () {
+      expect(await this.settings.magicNumber()).to.equal(0);
+
+      const desiredNumber = 42;
+
+      const target = this.settings.address;
+      const value = 0;
+      const data = this.settings.interface.encodeFunctionData(
+        'updateMagicNumber',
+        [desiredNumber]
+      );
+
+      const hash = keccak256(
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+      );
+
+      await incTime(1);
+      await this.dao.connect(this.bob).queueTransaction(target, value, data);
+      await incTime(DELAY);
+      await this.dao.connect(this.bob).executeTransaction(target, value, data);
+
+      expect(await this.settings.magicNumber()).to.equal(desiredNumber);
+    });
   });
 });

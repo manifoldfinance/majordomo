@@ -4,8 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
 import "@boringcrypto/boring-solidity/contracts/Domain.sol";
-import "@boringcrypto/boring-solidity/contracts/ERC20.sol";
-import "@boringcrypto/boring-solidity/contracts/libraries/BoringERC20.sol";
+
+import "./interfaces/IERC20.sol";
 
 // DAO code/operator management/dutch auction, etc by BoringCrypto
 // Staking in DictatorDAO inspired by Chef Nomi's SushiBar (heavily modified) - MIT license (originally WTFPL)
@@ -19,24 +19,21 @@ contract DictatorDAO is IERC20, Domain {
     uint8 public constant decimals = 18;
     uint256 public override totalSupply;
 
-    DictatorToken public immutable token;
+    IERC20 public immutable token;
     address public operator;
 
     mapping(address => address) public userVote;
     mapping(address => uint256) public votes;
 
     constructor(
-        string memory tokenSymbol,
-        string memory tokenName,
         string memory sharesSymbol,
         string memory sharesName,
+        IERC20 token_,
         address initialOperator
     ) public {
-        // The DAO is the owner of the DictatorToken
-        token = new DictatorToken(tokenSymbol, tokenName);
-
         symbol = sharesSymbol;
         name = sharesName;
+        token = token_;
         operator = initialOperator;
     }
 
@@ -51,13 +48,6 @@ contract DictatorDAO is IERC20, Domain {
     mapping(address => mapping(address => uint256)) public override allowance;
     /// @notice owner > nonce mapping. Used in `permit`.
     mapping(address => uint256) public nonces;
-
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
-    event Approval(
-        address indexed _owner,
-        address indexed _spender,
-        uint256 _value
-    );
 
     function balanceOf(address user)
         public
@@ -78,7 +68,7 @@ contract DictatorDAO is IERC20, Domain {
         if (shares != 0) {
             require(fromUser.balance >= shares, "Low balance");
             if (from != to) {
-                require(to != address(0), "Zero address"); // Moved down so other failed calls safe some gas
+                require(to != address(0), "Zero address"); // Moved down so other failed calls save some gas
                 User memory toUser = users[to];
 
                 address userVoteTo = userVote[to];
@@ -109,7 +99,11 @@ contract DictatorDAO is IERC20, Domain {
     /// @param to The address to move the tokens.
     /// @param shares of the tokens to move.
     /// @return (bool) Returns True if succeeded.
-    function transfer(address to, uint256 shares) public returns (bool) {
+    function transfer(address to, uint256 shares)
+        external
+        override
+        returns (bool)
+    {
         _transfer(msg.sender, to, shares);
         return true;
     }
@@ -123,7 +117,7 @@ contract DictatorDAO is IERC20, Domain {
         address from,
         address to,
         uint256 shares
-    ) public returns (bool) {
+    ) external override returns (bool) {
         _useAllowance(from, shares);
         _transfer(from, to, shares);
         return true;
@@ -134,7 +128,7 @@ contract DictatorDAO is IERC20, Domain {
     /// @param amount The maximum collective amount that `spender` can draw.
     /// @return (bool) Returns True if approved.
     function approve(address spender, uint256 amount)
-        public
+        external
         override
         returns (bool)
     {
@@ -219,7 +213,6 @@ contract DictatorDAO is IERC20, Domain {
     /// math is ok, because amount, totalSupply and shares is always 0 <= amount <= 100.000.000 * 10^18
     /// theoretically you can grow the amount/share ratio, but it's not practical and useless
     function mint(uint256 amount, address operatorVote) public returns (bool) {
-        // TODO: Remove?
         require(msg.sender != address(0), "Zero address");
         User memory user = users[msg.sender];
 
@@ -375,129 +368,5 @@ contract DictatorDAO is IERC20, Domain {
         emit ExecuteTransaction(txHash, target, value, data);
 
         return returnData;
-    }
-}
-
-contract DictatorToken is ERC20 {
-    using BoringMath for uint256;
-    using BoringMath128 for uint128;
-    // using SignedSafeMath for int256;
-    using BoringERC20 for IERC20;
-
-    uint256 constant WEEK = 7 days;
-    uint256 constant BONUS_DIVISOR = 14 days;
-
-    string public symbol;
-    string public name;
-    uint8 public constant decimals = 18;
-    uint256 public constant totalSupply = 100_000_000 * 1e18;
-
-    DictatorDAO public immutable DAO;
-
-    uint256 public immutable startTime;
-    uint16 public currentWeek;
-    mapping(uint16 => uint256) public weekShares;
-    mapping(address => mapping(uint16 => uint256)) public userWeekShares;
-
-    constructor(string memory symbol_, string memory name_) public {
-        symbol = symbol_;
-        name = name_;
-        DAO = DictatorDAO(msg.sender);
-
-        // Register founding time
-        startTime = block.timestamp;
-
-        // Mint all tokens and assign to the contract (no need for minting code after this + save some gas)
-        balanceOf[address(this)] = totalSupply;
-        emit Transfer(address(0), address(this), totalSupply);
-    }
-
-    function price() public view returns (uint256) {
-        uint256 weekStart = startTime + currentWeek * WEEK;
-        uint256 nextWeekStart = weekStart + WEEK;
-        if (block.timestamp >= nextWeekStart) {
-            return 0;
-        }
-
-        uint256 timeLeft =
-            block.timestamp < weekStart
-                ? WEEK
-                : nextWeekStart - block.timestamp;
-        uint256 timeLeftExp = timeLeft**8; // Max is 1.8e46
-        return timeLeftExp / 1e28;
-    }
-
-    function buy(uint16 week, address to) external payable {
-        require(week == currentWeek, "Wrong week");
-        uint256 weekStart = startTime + currentWeek * WEEK;
-        require(block.timestamp >= weekStart, "Not started");
-
-        uint256 currentPrice = price();
-        require(currentPrice > 0, "Ended");
-
-        // The above checks ensure that elapsed < WEEK
-        uint256 elapsed = block.timestamp - weekStart;
-        // Shares = value + part of value based on how much of the week has
-        // passed (starts at 50%, to 0% at the end of the week)
-        uint256 bonus = ((WEEK - elapsed) * msg.value) / BONUS_DIVISOR;
-        uint256 shares = msg.value + bonus;
-
-        userWeekShares[to][week] += shares;
-        weekShares[week] += shares;
-
-        uint256 tokensPerWeek = tokensPerWeek(currentWeek);
-        // Price is per "token ETH"; tokensPerWeek is in "token wei".
-        require(
-            weekShares[week].mul(1e18) <= currentPrice * tokensPerWeek,
-            "Oversold"
-        );
-    }
-
-    // Conclude the auction; buyers can now get their best price:
-    function nextWeek() public {
-        // TODO: Prove that we don't need to check the multiplication
-        uint256 tokensPerWeek = tokensPerWeek(currentWeek);
-        require(
-            weekShares[currentWeek].mul(1e18) >= price() * tokensPerWeek,
-            "Not fully sold"
-        );
-        currentWeek++;
-    }
-
-    function claimPurchase(uint16 week, address to) public {
-        // TODO: Call nextWeek() as needed?
-        require(week < currentWeek, "Not finished");
-        // Given that (check definitions)...
-        //      - price         <= WEEK**8 / 1e28 ~= 1.8 ETH,
-        //      - tokensPerWeek <= 1M             ~= 1e26 wei,
-        //      - shares        <= max_{all time}(price * tokensPerWeek)
-        // the numerator is at most 1.8e54 < 2 * 2**180:
-        uint256 tokens =
-            (userWeekShares[to][week] * tokensPerWeek(week)) /
-                weekShares[week];
-        // By int division and the fact that all tokens have been minted, the
-        // following will not underflow. TODO: check/enforce
-        balanceOf[address(this)] -= tokens;
-        balanceOf[to] += tokens;
-        emit Transfer(address(this), to, tokens);
-    }
-
-    function tokensPerWeek(uint256 week) public pure returns (uint256) {
-        return
-            week < 2 ? 1_000_000e18 : week < 50 ? 100_000e18 : week < 100
-                ? 50_000e18
-                : week < 150
-                ? 30_000e18
-                : week < 200
-                ? 20_000e18
-                : 0;
-    }
-
-    function retrieveOperatorPayment(address to)
-        public
-        returns (bool success)
-    {
-        require(msg.sender == DAO.operator(), "Not operator");
-        (success, ) = to.call{value: address(this).balance}("");
     }
 }
