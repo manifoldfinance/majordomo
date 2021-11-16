@@ -372,7 +372,7 @@ contract DictatorToken is ERC20, BoringBatchable {
     string public symbol;
     string public name;
     uint8 public constant decimals = 18;
-    uint256 public constant totalSupply = 100000000 * 1e18;
+    uint256 public constant totalSupply = 100_000_000 * 1e18;
 
     DictatorDAO public immutable DAO;
 
@@ -438,24 +438,24 @@ contract DictatorToken is ERC20, BoringBatchable {
 
     function tokensPerWeek(uint256 week) public pure returns (uint256) {
         return
-            week < 2 ? 1000000 : week < 50 ? 100000e18 : week < 100
-                ? 50000e18
+            week < 2 ? 1_000_000e18 : week < 50 ? 100_000e18 : week < 100
+                ? 50_000e18
                 : week < 150
-                ? 30000e18
+                ? 30_000e18
                 : week < 200
-                ? 20000e18
+                ? 20_000e18
                 : 0;
     }
 
     function tokensPerBlock() public view returns (uint256) {
         uint256 elapsed = (block.timestamp - startTime) / WEEK;
         return
-            elapsed < 2 ? 0 : elapsed < 50 ? 219780e14 : elapsed < 100
-                ? 109890e14
+            elapsed < 2 ? 0 : elapsed < 50 ? 219_780e14 : elapsed < 100
+                ? 109_890e14
                 : elapsed < 150
-                ? 65934e14
+                ? 65_934e14
                 : elapsed < 200
-                ? 43956e14
+                ? 43_956e14
                 : 0;
     }
 
