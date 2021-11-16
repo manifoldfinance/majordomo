@@ -290,9 +290,15 @@ describe('Staking and Voting', function () {
       // get 20% more shares back:
       await this.token.connect(this.carol).transfer(this.dao.address, tribute);
 
-      // Alice now gets 1/5 more back:
+      // Alice now gets 1/5 more back. (Using "burnFrom" mainly for coverage
+      // reasons):
+      await this.dao
+        .connect(this.alice)
+        .approve(this.erin.address, UINT256_MAX);
       await expect(
-        this.dao.connect(this.alice).burn(this.alice.address, stakeAlice)
+        this.dao
+          .connect(this.erin)
+          .burnFrom(this.alice.address, this.alice.address, stakeAlice)
       )
         .to.emit(this.dao, 'Transfer')
         .withArgs(this.alice.address, ZERO_ADDR, stakeAlice)
@@ -302,7 +308,6 @@ describe('Staking and Voting', function () {
           this.alice.address,
           stakeAlice.mul(6).div(5)
         );
-
     });
 
     it('Should reflect the new share price when staking', async function () {
@@ -314,7 +319,6 @@ describe('Staking and Voting', function () {
         .withArgs(this.alice.address, this.dao.address, stakeAlice)
         .to.emit(this.dao, 'Transfer')
         .withArgs(ZERO_ADDR, this.alice.address, stakeAlice.mul(5).div(6));
-
     });
 
     let tokenRoundingError;

@@ -218,23 +218,22 @@ describe('Queueing Transactions', function () {
   });
 
   describe('Application - Example', function () {
-    it('Should let the operator act on behalf of the DAO', async function () {
-      const target = this.token.address;
-      const value = 0;
-      // TODO: Sort out where to get this;
-      const data = this.token.interface.encodeFunctionData('setMigrator', [
-        this.fred.address,
-      ]);
-      const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
-      );
-      await incTime(1);
-      await this.dao.connect(this.bob).queueTransaction(target, value, data);
-      await incTime(DELAY);
-
-      expect(await this.token.migrator()).to.equal(ZERO_ADDR);
-      await this.dao.connect(this.bob).executeTransaction(target, value, data);
-      expect(await this.token.migrator()).to.equal(this.fred.address);
-    });
+    // it('Should let the operator act on behalf of the DAO', async function () {
+    //   const target = this.token.address;
+    //   const value = 0;
+    //   // TODO: Sort out where to get this;
+    //   const data = this.token.interface.encodeFunctionData('setMigrator', [
+    //     this.fred.address,
+    //   ]);
+    //   const hash = keccak256(
+    //     abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+    //   );
+    //   await incTime(1);
+    //   await this.dao.connect(this.bob).queueTransaction(target, value, data);
+    //   await incTime(DELAY);
+    //   expect(await this.token.migrator()).to.equal(ZERO_ADDR);
+    //   await this.dao.connect(this.bob).executeTransaction(target, value, data);
+    //   expect(await this.token.migrator()).to.equal(this.fred.address);
+    // });
   });
 });
