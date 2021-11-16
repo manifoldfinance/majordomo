@@ -358,3 +358,6 @@ artifacts
 # Generated files
 /gasReport.txt
 /contracts/DictatorDAOFlat.sol
+/coverage
+coverage.json
+/types/ethers-contracts
