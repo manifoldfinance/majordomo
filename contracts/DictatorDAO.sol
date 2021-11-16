@@ -76,7 +76,15 @@ contract DictatorDAO is IERC20, Domain {
 
                 users[from].balance = fromUser.balance - shares.to128(); // Underflow is checked
                 users[to].balance = toUser.balance + shares.to128(); // Can't overflow because totalSupply would be greater than 2^256-1
+
+                // The "from" user's nominee started with at least that user's
+                // votes, and votes correspond to 1:1 to balances. By the
+                // "Low balance" check above this will not underflow.
                 votes[userVoteFrom] -= shares;
+
+                // The "to" user's nominee started with at most `totalSupply`
+                // votes. By the above, they have at least `shares` fewer now.
+                // It follows that there can be no overflow.
                 votes[userVoteTo] += shares;
             }
         }
@@ -190,6 +198,8 @@ contract DictatorDAO is IERC20, Domain {
     address public pendingOperator;
     uint256 public pendingOperatorTime;
 
+    // Condition for safe math: totalSupply < 2^255, so that the doubling fits.
+    // A sufficient condition is for this to hold for token.totalSupply.
     function setOperator(address newOperator) public {
         require(newOperator != address(0), "Zero operator");
         uint256 netVotes = totalSupply - votes[address(0)];
