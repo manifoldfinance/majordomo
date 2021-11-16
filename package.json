@@ -1,11 +1,11 @@
 {
     "scripts": {
         "test": "hardhat test",
-        "format": "prettier --write contracts/**/*.sol *.js *.json test/**/*.js",
+        "format": "prettier --write contracts/*.sol contracts/**/*.sol *.js *.json test/*.js test/**/*.js",
         "pretty-quick": "pretty-quick",
         "coverage": "hardhat coverage",
-        "flatten": "hardhat flatten .\\contracts\\DictatorDAO.sol > .\\contracts\\DictatorDAOFlat.sol",
-        "flat": "hardhat flat .\\contracts\\DictatorDAO.sol --output .\\contracts\\DictatorDAOFlat.sol",
+        "flatten": "hardhat flatten ./contracts/DictatorDAO.sol > ./contracts/DictatorDAOFlat.sol",
+        "flat": "hardhat flat ./contracts/DictatorDAO.sol --output ./contracts/DictatorDAOFlat.sol",
         "ts": "yarn run typechain --target ethers-v5 \"artifacts/contracts/DictatorDAOFlat.sol/Dictator?(DAO|Deployer|Token).json\""
     },
     "dependencies": {

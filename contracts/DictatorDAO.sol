@@ -56,9 +56,18 @@ contract DictatorDAO is IERC20, Domain {
     mapping(address => uint256) public nonces;
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+    event Approval(
+        address indexed _owner,
+        address indexed _spender,
+        uint256 _value
+    );
 
-    function balanceOf(address user) public view override returns (uint256 balance) {
+    function balanceOf(address user)
+        public
+        view
+        override
+        returns (uint256 balance)
+    {
         return users[user].balance;
     }
 
@@ -78,7 +87,10 @@ contract DictatorDAO is IERC20, Domain {
                 address userVoteTo = userVote[to];
                 address userVoteFrom = userVote[from];
                 // If the to has no vote and no balance, copy the from vote
-                address operatorVote = toUser.balance > 0 && userVoteTo == address(0) ? userVoteTo : userVoteFrom;
+                address operatorVote =
+                    toUser.balance > 0 && userVoteTo == address(0)
+                        ? userVoteTo
+                        : userVoteFrom;
 
                 users[from].balance = fromUser.balance - shares.to128(); // Underflow is checked
                 users[to].balance = toUser.balance + shares.to128(); // Can't overflow because totalSupply would be greater than 2^256-1
@@ -130,7 +142,11 @@ contract DictatorDAO is IERC20, Domain {
     /// @param spender Address of the party that can draw from msg.sender's account.
     /// @param amount The maximum collective amount that `spender` can draw.
     /// @return (bool) Returns True if approved.
-    function approve(address spender, uint256 amount) public override returns (bool) {
+    function approve(address spender, uint256 amount)
+        public
+        override
+        returns (bool)
+    {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
@@ -142,7 +158,8 @@ contract DictatorDAO is IERC20, Domain {
     }
 
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 private constant PERMIT_SIGNATURE_HASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+    bytes32 private constant PERMIT_SIGNATURE_HASH =
+        0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
     /// @notice Approves `value` from `owner_` to be spend by `spender`.
     /// @param owner_ Address of the owner.
@@ -161,8 +178,23 @@ contract DictatorDAO is IERC20, Domain {
         require(owner_ != address(0), "Zero owner");
         require(block.timestamp < deadline, "Expired");
         require(
-            ecrecover(_getDigest(keccak256(abi.encode(PERMIT_SIGNATURE_HASH, owner_, spender, value, nonces[owner_]++, deadline))), v, r, s) ==
-                owner_,
+            ecrecover(
+                _getDigest(
+                    keccak256(
+                        abi.encode(
+                            PERMIT_SIGNATURE_HASH,
+                            owner_,
+                            spender,
+                            value,
+                            nonces[owner_]++,
+                            deadline
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            ) == owner_,
             "Invalid Sig"
         );
         allowance[owner_][spender] = value;
@@ -195,7 +227,8 @@ contract DictatorDAO is IERC20, Domain {
         User memory user = users[msg.sender];
 
         uint256 totalTokens = token.balanceOf(address(this));
-        uint256 shares = totalSupply == 0 ? amount : (amount * totalSupply) / totalTokens;
+        uint256 shares =
+            totalSupply == 0 ? amount : (amount * totalSupply) / totalTokens;
         user.balance += shares.to128();
         user.lockedUntil = (block.timestamp + 24 hours).to128();
         users[msg.sender] = user;
@@ -216,7 +249,8 @@ contract DictatorDAO is IERC20, Domain {
         require(to != address(0), "Zero address");
         User memory user = users[from];
         require(block.timestamp >= user.lockedUntil, "Locked");
-        uint256 amount = (shares * token.balanceOf(address(this))) / totalSupply;
+        uint256 amount =
+            (shares * token.balanceOf(address(this))) / totalSupply;
         users[from].balance = user.balance.sub(shares.to128()); // Must check underflow
         totalSupply -= shares;
         votes[userVote[from]] -= shares;
@@ -241,9 +275,25 @@ contract DictatorDAO is IERC20, Domain {
         return true;
     }
 
-    event QueueTransaction(bytes32 indexed txHash, address indexed target, uint256 value, bytes data, uint256 eta);
-    event CancelTransaction(bytes32 indexed txHash, address indexed target, uint256 value, bytes data);
-    event ExecuteTransaction(bytes32 indexed txHash, address indexed target, uint256 value, bytes data);
+    event QueueTransaction(
+        bytes32 indexed txHash,
+        address indexed target,
+        uint256 value,
+        bytes data,
+        uint256 eta
+    );
+    event CancelTransaction(
+        bytes32 indexed txHash,
+        address indexed target,
+        uint256 value,
+        bytes data
+    );
+    event ExecuteTransaction(
+        bytes32 indexed txHash,
+        address indexed target,
+        uint256 value,
+        bytes data
+    );
 
     uint256 public constant GRACE_PERIOD = 14 days;
     uint256 public constant DELAY = 2 days;
@@ -294,7 +344,8 @@ contract DictatorDAO is IERC20, Domain {
         queuedTransactions[txHash] = 0;
 
         // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call{value: value}(data);
+        (bool success, bytes memory returnData) =
+            target.call{value: value}(data);
         require(success, "Tx reverted :(");
 
         emit ExecuteTransaction(txHash, target, value, data);
@@ -349,7 +400,8 @@ contract DictatorToken is ERC20, BoringBatchable {
     }
 
     function price() public view returns (uint256) {
-        uint256 timeLeft = (currentWeek + 1) * WEEK + startTime - block.timestamp;
+        uint256 timeLeft =
+            (currentWeek + 1) * WEEK + startTime - block.timestamp;
         uint256 timeLeftExp = timeLeft**8; // Max is 1.8e46
         return timeLeftExp / 1e28;
     }
@@ -363,37 +415,95 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 tokensPerWeek = tokensPerWeek(currentWeek);
         uint256 currentPrice = price();
         // Shares = value + part of value based on how much of the week has passed (starts at 50%, to 0% at the end of the week)
-        uint256 shares = msg.value + elapsed < WEEK ? ((WEEK - elapsed) * msg.value) / BONUS_DIVISOR : 0;
+        uint256 shares =
+            msg.value + elapsed < WEEK
+                ? ((WEEK - elapsed) * msg.value) / BONUS_DIVISOR
+                : 0;
         userWeekShares[to][week] += shares;
         weekShares[week] += shares;
-        require(weekShares[week].mul(1e18) / currentPrice < tokensPerWeek, "Oversold");
+        require(
+            weekShares[week].mul(1e18) / currentPrice < tokensPerWeek,
+            "Oversold"
+        );
     }
 
     function nextWeek() public {
-        require(weekShares[currentWeek].mul(1e18) / price() > tokensPerWeek(currentWeek), "Not fully sold");
+        require(
+            weekShares[currentWeek].mul(1e18) / price() >
+                tokensPerWeek(currentWeek),
+            "Not fully sold"
+        );
         currentWeek++;
     }
 
     function tokensPerWeek(uint256 week) public pure returns (uint256) {
-        return week < 2 ? 1000000 : week < 50 ? 100000e18 : week < 100 ? 50000e18 : week < 150 ? 30000e18 : week < 200 ? 20000e18 : 0;
+        return
+            week < 2 ? 1000000 : week < 50 ? 100000e18 : week < 100
+                ? 50000e18
+                : week < 150
+                ? 30000e18
+                : week < 200
+                ? 20000e18
+                : 0;
     }
 
     function tokensPerBlock() public view returns (uint256) {
         uint256 elapsed = (block.timestamp - startTime) / WEEK;
-        return elapsed < 2 ? 0 : elapsed < 50 ? 219780e14 : elapsed < 100 ? 109890e14 : elapsed < 150 ? 65934e14 : elapsed < 200 ? 43956e14 : 0;
+        return
+            elapsed < 2 ? 0 : elapsed < 50 ? 219780e14 : elapsed < 100
+                ? 109890e14
+                : elapsed < 150
+                ? 65934e14
+                : elapsed < 200
+                ? 43956e14
+                : 0;
     }
 
-    function retrieveOperatorPayment(address to) public onlyOperator returns (bool success) {
+    function retrieveOperatorPayment(address to)
+        public
+        onlyOperator
+        returns (bool success)
+    {
         (success, ) = to.call{value: address(this).balance}("");
     }
 
-    event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
-    event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
-    event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
+    event Deposit(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amount,
+        address indexed to
+    );
+    event Withdraw(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amount,
+        address indexed to
+    );
+    event EmergencyWithdraw(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amount,
+        address indexed to
+    );
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
-    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed poolToken, IRewarder indexed rewarder);
-    event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
-    event LogUpdatePool(uint256 indexed pid, uint64 lastRewardBlock, uint256 lpSupply, uint256 accTokensPerShare);
+    event LogPoolAddition(
+        uint256 indexed pid,
+        uint256 allocPoint,
+        IERC20 indexed poolToken,
+        IRewarder indexed rewarder
+    );
+    event LogSetPool(
+        uint256 indexed pid,
+        uint256 allocPoint,
+        IRewarder indexed rewarder,
+        bool overwrite
+    );
+    event LogUpdatePool(
+        uint256 indexed pid,
+        uint64 lastRewardBlock,
+        uint256 lpSupply,
+        uint256 accTokensPerShare
+    );
 
     /// @notice Info of each Distributor user.
     /// `amount` LP token amount the user has provided.
@@ -449,8 +559,19 @@ contract DictatorToken is ERC20, BoringBatchable {
         poolToken.push(poolToken_);
         rewarder.push(_rewarder);
 
-        poolInfo.push(PoolInfo({allocPoint: allocPoint.to64(), lastRewardBlock: lastRewardBlock.to64(), accTokensPerShare: 0}));
-        emit LogPoolAddition(poolToken.length.sub(1), allocPoint, poolToken_, _rewarder);
+        poolInfo.push(
+            PoolInfo({
+                allocPoint: allocPoint.to64(),
+                lastRewardBlock: lastRewardBlock.to64(),
+                accTokensPerShare: 0
+            })
+        );
+        emit LogPoolAddition(
+            poolToken.length.sub(1),
+            allocPoint,
+            poolToken_,
+            _rewarder
+        );
     }
 
     /// @notice Update the given pool's tokens allocation point and `IRewarder` contract. Can only be called by the owner.
@@ -464,12 +585,19 @@ contract DictatorToken is ERC20, BoringBatchable {
         IRewarder _rewarder,
         bool overwrite
     ) public onlyOperator {
-        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
+        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
+            _allocPoint
+        );
         poolInfo[_pid].allocPoint = _allocPoint.to64();
         if (overwrite) {
             rewarder[_pid] = _rewarder;
         }
-        emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
+        emit LogSetPool(
+            _pid,
+            _allocPoint,
+            overwrite ? _rewarder : rewarder[_pid],
+            overwrite
+        );
     }
 
     /// @notice Set the `migrator` contract. Can only be called by the owner.
@@ -486,7 +614,10 @@ contract DictatorToken is ERC20, BoringBatchable {
         uint256 bal = _poolToken.balanceOf(address(this));
         _poolToken.approve(address(migrator), bal);
         IERC20 newPoolToken = migrator.migrate(_poolToken);
-        require(bal == newPoolToken.balanceOf(address(this)), "Migrated balance mismatch");
+        require(
+            bal == newPoolToken.balanceOf(address(this)),
+            "Migrated balance mismatch"
+        );
         poolToken[pid] = newPoolToken;
     }
 
@@ -494,17 +625,29 @@ contract DictatorToken is ERC20, BoringBatchable {
     /// @param _pid The index of the pool. See `poolInfo`.
     /// @param _user Address of user.
     /// @return pending tokens reward for a given user.
-    function pendingTokens(uint256 _pid, address _user) external view returns (uint256 pending) {
+    function pendingTokens(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256 pending)
+    {
         PoolInfo memory pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accTokensPerShare = pool.accTokensPerShare;
         uint256 lpSupply = poolToken[_pid].balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 blocks = block.number.sub(pool.lastRewardBlock);
-            uint256 tokensReward = blocks.mul(tokensPerBlock()).mul(pool.allocPoint) / totalAllocPoint;
-            accTokensPerShare = accTokensPerShare.add(tokensReward.mul(ACC_TOKENS_PRECISION) / lpSupply);
+            uint256 tokensReward =
+                blocks.mul(tokensPerBlock()).mul(pool.allocPoint) /
+                    totalAllocPoint;
+            accTokensPerShare = accTokensPerShare.add(
+                tokensReward.mul(ACC_TOKENS_PRECISION) / lpSupply
+            );
         }
-        pending = int256(user.amount.mul(accTokensPerShare) / ACC_TOKENS_PRECISION).sub(user.rewardDebt).toUInt256();
+        pending = int256(
+            user.amount.mul(accTokensPerShare) / ACC_TOKENS_PRECISION
+        )
+            .sub(user.rewardDebt)
+            .toUInt256();
     }
 
     /// @notice Update reward variables for all pools. Be careful of gas spending!
@@ -525,12 +668,21 @@ contract DictatorToken is ERC20, BoringBatchable {
             uint256 lpSupply = poolToken[pid].balanceOf(address(this));
             if (lpSupply > 0) {
                 uint256 blocks = block.number.sub(pool.lastRewardBlock);
-                uint256 tokensReward = blocks.mul(tokensPerBlock()).mul(pool.allocPoint) / totalAllocPoint;
-                pool.accTokensPerShare = pool.accTokensPerShare.add((tokensReward.mul(ACC_TOKENS_PRECISION) / lpSupply).to128());
+                uint256 tokensReward =
+                    blocks.mul(tokensPerBlock()).mul(pool.allocPoint) /
+                        totalAllocPoint;
+                pool.accTokensPerShare = pool.accTokensPerShare.add(
+                    (tokensReward.mul(ACC_TOKENS_PRECISION) / lpSupply).to128()
+                );
             }
             pool.lastRewardBlock = block.number.to64();
             poolInfo[pid] = pool;
-            emit LogUpdatePool(pid, pool.lastRewardBlock, lpSupply, pool.accTokensPerShare);
+            emit LogUpdatePool(
+                pid,
+                pool.lastRewardBlock,
+                lpSupply,
+                pool.accTokensPerShare
+            );
         }
     }
 
@@ -548,7 +700,9 @@ contract DictatorToken is ERC20, BoringBatchable {
 
         // Effects
         user.amount = user.amount.add(amount);
-        user.rewardDebt = user.rewardDebt.add(int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION));
+        user.rewardDebt = user.rewardDebt.add(
+            int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION)
+        );
 
         // Interactions
         IRewarder _rewarder = rewarder[pid];
@@ -574,7 +728,9 @@ contract DictatorToken is ERC20, BoringBatchable {
         UserInfo storage user = userInfo[pid][msg.sender];
 
         // Effects
-        user.rewardDebt = user.rewardDebt.sub(int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION));
+        user.rewardDebt = user.rewardDebt.sub(
+            int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION)
+        );
         user.amount = user.amount.sub(amount);
 
         // Interactions
@@ -594,22 +750,34 @@ contract DictatorToken is ERC20, BoringBatchable {
     function harvest(uint256 pid, address to) public {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][msg.sender];
-        int256 accumulatedTokens = int256(user.amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION);
-        uint256 _pendingTokens = accumulatedTokens.sub(user.rewardDebt).toUInt256();
+        int256 accumulatedTokens =
+            int256(
+                user.amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION
+            );
+        uint256 _pendingTokens =
+            accumulatedTokens.sub(user.rewardDebt).toUInt256();
 
         // Effects
         user.rewardDebt = accumulatedTokens;
 
         // Interactions
         if (_pendingTokens != 0) {
-            balanceOf[address(this)] = balanceOf[address(this)].sub(_pendingTokens);
+            balanceOf[address(this)] = balanceOf[address(this)].sub(
+                _pendingTokens
+            );
             balanceOf[to] += balanceOf[to];
             emit Transfer(address(this), to, _pendingTokens);
         }
 
         IRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.onTokensReward(pid, msg.sender, to, _pendingTokens, user.amount);
+            _rewarder.onTokensReward(
+                pid,
+                msg.sender,
+                to,
+                _pendingTokens,
+                user.amount
+            );
         }
 
         emit Harvest(msg.sender, pid, _pendingTokens);
@@ -626,21 +794,35 @@ contract DictatorToken is ERC20, BoringBatchable {
     ) public {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][msg.sender];
-        int256 accumulatedTokens = int256(user.amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION);
-        uint256 _pendingTokens = accumulatedTokens.sub(user.rewardDebt).toUInt256();
+        int256 accumulatedTokens =
+            int256(
+                user.amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION
+            );
+        uint256 _pendingTokens =
+            accumulatedTokens.sub(user.rewardDebt).toUInt256();
 
         // Effects
-        user.rewardDebt = accumulatedTokens.sub(int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION));
+        user.rewardDebt = accumulatedTokens.sub(
+            int256(amount.mul(pool.accTokensPerShare) / ACC_TOKENS_PRECISION)
+        );
         user.amount = user.amount.sub(amount);
 
         // Interactions
-        balanceOf[address(this)] = balanceOf[address(this)].sub(_pendingTokens);
+        balanceOf[address(this)] = balanceOf[address(this)].sub(
+            _pendingTokens
+        );
         balanceOf[to] += balanceOf[to];
         emit Transfer(address(this), to, _pendingTokens);
 
         IRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.onTokensReward(pid, msg.sender, to, _pendingTokens, user.amount);
+            _rewarder.onTokensReward(
+                pid,
+                msg.sender,
+                to,
+                _pendingTokens,
+                user.amount
+            );
         }
 
         poolToken[pid].safeTransfer(to, amount);

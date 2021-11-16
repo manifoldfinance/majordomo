@@ -354,3 +354,7 @@ node_modules
 #Hardhat files
 cache
 artifacts
+
+# Generated files
+/gasReport.txt
+/contracts/DictatorDAOFlat.sol
