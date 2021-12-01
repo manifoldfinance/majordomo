@@ -2,7 +2,7 @@
     "name": "@majordomo/contracts",
     "private": true,
     "version": "0.0.0",
-    "description": "typescript hardhat base with conformant linting",
+    "description": "",
     "files": [
         "/contracts/**/*.sol",
         "/build/contracts/*.json",
