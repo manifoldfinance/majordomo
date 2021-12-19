@@ -1,8 +1,8 @@
 {
-    "name": "@majordomo/contracts",
-    "private": true,
-    "version": "0.0.0",
-    "description": "",
+    "name": "majordomo",
+    "private": false,
+    "version": "1.0.0",
+    "description": "DictatorDAO without an Auction System: MasterChef based Staking Protocol",
     "files": [
         "/contracts/**/*.sol",
         "/build/contracts/*.json",
@@ -18,7 +18,7 @@
         "smart contracts",
         "defi"
     ],
-    "author": "SEE CONTRIBUTORS",
+    "author": "Boring Crypto, Barry London, et al.",
     "license": "SEE LICENSE IN LICENSE",
     "bugs": {
         "url": "https://github.com/manifoldfinance/majordomo/issues"
