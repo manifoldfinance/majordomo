@@ -23,11 +23,7 @@ describe('Queueing Transactions', function () {
       const owners = [this.alice, this.bob, this.carol];
       const initialBalance = BN(10_000);
 
-      await cmd.deploy(
-        'token',
-        'MockERC20',
-        initialBalance.mul(owners.length)
-      );
+      await cmd.deploy('token', 'MockERC20', initialBalance.mul(owners.length));
 
       await cmd.deploy(
         'dao',
@@ -35,7 +31,7 @@ describe('Queueing Transactions', function () {
         'MAJOR',
         'Majordomo',
         this.token.address,
-        this.bob.address
+        this.bob.address,
       );
 
       await cmd.deploy('settings', 'MockSettings', this.dao.address);
@@ -69,14 +65,14 @@ describe('Queueing Transactions', function () {
       const value = BN(1_000_000);
       const data = [];
       const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data]),
       );
 
       // Ensure a deterministic timestamp:
       const next = await incTime(1);
 
       await expect(
-        this.dao.connect(this.bob).queueTransaction(target, value, data)
+        this.dao.connect(this.bob).queueTransaction(target, value, data),
       )
         .to.emit(this.dao, 'QueueTransaction')
         .withArgs(hash, target, value, data, next + DELAY);
@@ -86,7 +82,7 @@ describe('Queueing Transactions', function () {
       await expect(
         this.dao
           .connect(this.alice)
-          .queueTransaction(this.alice.address, BN(1_000_000), [])
+          .queueTransaction(this.alice.address, BN(1_000_000), []),
       ).to.be.revertedWith('Operator only');
     });
 
@@ -98,7 +94,7 @@ describe('Queueing Transactions', function () {
       await expect(
         this.dao
           .connect(this.bob)
-          .queueTransaction(this.dirk.address, BN(1_000_000), [])
+          .queueTransaction(this.dirk.address, BN(1_000_000), []),
       ).to.be.revertedWith('Not enough votes');
     });
 
@@ -107,23 +103,23 @@ describe('Queueing Transactions', function () {
       const value = BN(1337);
       const data = [];
       const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data]),
       );
 
       const next = await incTime(1);
 
       await expect(
-        this.dao.connect(this.bob).queueTransaction(target, value, data)
+        this.dao.connect(this.bob).queueTransaction(target, value, data),
       )
         .to.emit(this.dao, 'QueueTransaction')
         .withArgs(hash, target, value, data, next + DELAY);
 
       await expect(
-        this.dao.connect(this.alice).cancelTransaction(target, value, data)
+        this.dao.connect(this.alice).cancelTransaction(target, value, data),
       ).to.be.revertedWith('Operator only');
 
       await expect(
-        this.dao.connect(this.bob).cancelTransaction(target, value, data)
+        this.dao.connect(this.bob).cancelTransaction(target, value, data),
       )
         .to.emit(this.dao, 'CancelTransaction')
         .withArgs(hash, target, value, data);
@@ -137,7 +133,7 @@ describe('Queueing Transactions', function () {
       await this.dao.connect(this.bob).queueTransaction(target, value, data);
 
       await expect(
-        this.dao.connect(this.bob).executeTransaction(target, value, data)
+        this.dao.connect(this.bob).executeTransaction(target, value, data),
       ).to.be.revertedWith('Too early');
     });
 
@@ -151,7 +147,7 @@ describe('Queueing Transactions', function () {
       await incTime(EXPIRATION + DELAY + 1);
 
       await expect(
-        this.dao.connect(this.bob).executeTransaction(target, value, data)
+        this.dao.connect(this.bob).executeTransaction(target, value, data),
       ).to.be.revertedWith('Tx stale');
     });
 
@@ -160,7 +156,7 @@ describe('Queueing Transactions', function () {
       const value = BN(1337);
       const data = [];
       const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data]),
       );
 
       await this.dao.connect(this.bob).queueTransaction(target, value, data);
@@ -169,14 +165,14 @@ describe('Queueing Transactions', function () {
 
       // Not enough money
       await expect(
-        this.dao.connect(this.bob).executeTransaction(target, value, data)
+        this.dao.connect(this.bob).executeTransaction(target, value, data),
       ).to.be.revertedWith('Tx reverted :(');
 
       // Send along enough money. Note that the tx is kept if it reverts:
       await expect(
         this.dao
           .connect(this.bob)
-          .executeTransaction(target, value, data, { value })
+          .executeTransaction(target, value, data, { value }),
       )
         .to.emit(this.dao, 'ExecuteTransaction')
         .withArgs(hash, target, value, data);
@@ -187,7 +183,7 @@ describe('Queueing Transactions', function () {
       const value = BN(1337);
       const data = [];
       const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data]),
       );
 
       await this.dao.connect(this.bob).queueTransaction(target, value, data);
@@ -199,7 +195,7 @@ describe('Queueing Transactions', function () {
       await this.dao.connect(this.carol).mint(stakeAlice, this.erin.address);
 
       await expect(
-        this.dao.connect(this.bob).executeTransaction(target, value, data)
+        this.dao.connect(this.bob).executeTransaction(target, value, data),
       ).to.be.revertedWith('Not enough votes');
     });
 
@@ -207,7 +203,7 @@ describe('Queueing Transactions', function () {
       await expect(
         this.dao
           .connect(this.alice)
-          .executeTransaction(this.alice.address, BN(1_000_000), [])
+          .executeTransaction(this.alice.address, BN(1_000_000), []),
       ).to.be.revertedWith('Operator only');
     });
 
@@ -219,7 +215,7 @@ describe('Queueing Transactions', function () {
       await expect(
         this.dao
           .connect(this.bob)
-          .executeTransaction(this.bob.address, BN(1_000_000), [])
+          .executeTransaction(this.bob.address, BN(1_000_000), []),
       ).to.be.revertedWith('Tx stale');
     });
   });
@@ -234,11 +230,11 @@ describe('Queueing Transactions', function () {
       const value = 0;
       const data = this.settings.interface.encodeFunctionData(
         'updateMagicNumber',
-        [desiredNumber]
+        [desiredNumber],
       );
 
       const hash = keccak256(
-        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data])
+        abiCoder.encode(['address', 'uint256', 'bytes'], [target, value, data]),
       );
 
       await incTime(1);

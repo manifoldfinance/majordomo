@@ -227,8 +227,9 @@ contract DictatorDAO is IERC20, Domain {
         User memory user = users[msg.sender];
 
         uint256 totalTokens = token.balanceOf(address(this));
-        uint256 shares =
-            totalSupply == 0 ? amount : (amount * totalSupply) / totalTokens;
+        uint256 shares = totalSupply == 0
+            ? amount
+            : (amount * totalSupply) / totalTokens;
 
         // Did we change our vote? Do this while we know our previous total:
         address currentVote = userVote[msg.sender];
@@ -276,8 +277,8 @@ contract DictatorDAO is IERC20, Domain {
         require(to != address(0), "Zero address");
         User memory user = users[from];
         require(block.timestamp >= user.lockedUntil, "Locked");
-        uint256 amount =
-            (shares * token.balanceOf(address(this))) / totalSupply;
+        uint256 amount = (shares * token.balanceOf(address(this))) /
+            totalSupply;
         users[from].balance = user.balance.sub(shares.to128()); // Must check underflow
         totalSupply -= shares;
         votes[userVote[from]] -= shares;
@@ -371,8 +372,9 @@ contract DictatorDAO is IERC20, Domain {
         queuedTransactions[txHash] = 0;
 
         // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) =
-            target.call{value: value}(data);
+        (bool success, bytes memory returnData) = target.call{ value: value }(
+            data
+        );
         require(success, "Tx reverted :(");
 
         emit ExecuteTransaction(txHash, target, value, data);

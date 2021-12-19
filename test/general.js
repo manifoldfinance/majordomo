@@ -34,11 +34,7 @@ describe('General functionality', function () {
       // Initial supply will be owned by Alice, the first account:
       const owners = [this.alice, this.bob, this.carol, lisa];
 
-      await cmd.deploy(
-        'token',
-        'MockERC20',
-        initialBalance.mul(owners.length)
-      );
+      await cmd.deploy('token', 'MockERC20', initialBalance.mul(owners.length));
 
       await cmd.deploy(
         'dao',
@@ -46,7 +42,7 @@ describe('General functionality', function () {
         'MAJOR',
         'Majordomo',
         this.token.address,
-        this.bob.address
+        this.bob.address,
       );
       dao = this.dao;
 
@@ -62,18 +58,18 @@ describe('General functionality', function () {
 
       PERMIT_SIGNATURE_HASH = keccak256(
         toUtf8Bytes(
-          'Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)'
-        )
+          'Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)',
+        ),
       );
       const DOMAIN_SEPARATOR_HASH = keccak256(
-        toUtf8Bytes('EIP712Domain(uint256 chainId,address verifyingContract)')
+        toUtf8Bytes('EIP712Domain(uint256 chainId,address verifyingContract)'),
       );
       // TODO: Get chain ID
       DOMAIN_SEPARATOR = keccak256(
         abiCoder.encode(
           ['bytes32', 'uint256', 'address'],
-          [DOMAIN_SEPARATOR_HASH, 31337, dao.address]
-        )
+          [DOMAIN_SEPARATOR_HASH, 31337, dao.address],
+        ),
       );
     });
   });
@@ -95,7 +91,7 @@ describe('General functionality', function () {
     it('Should enforce account balance', async function () {
       const tooMuch = stakeAlice.add(1);
       await expect(dao.transfer(lisa.address, tooMuch)).to.be.revertedWith(
-        'Low balance'
+        'Low balance',
       );
     });
 
@@ -107,7 +103,7 @@ describe('General functionality', function () {
 
     it('Should refuse otherwise valid transfers to zero', async function () {
       await expect(dao.transfer(ZERO_ADDR, 1)).to.be.revertedWith(
-        'Zero address'
+        'Zero address',
       );
     });
   });
@@ -115,7 +111,7 @@ describe('General functionality', function () {
   describe('ERC20 allowances', function () {
     it('Should always allow transferFrom self', async function () {
       expect(
-        await this.dao.allowance(this.alice.address, this.alice.address)
+        await this.dao.allowance(this.alice.address, this.alice.address),
       ).to.equal(0);
 
       expect(dao.transferFrom(this.alice.address, this.alice.address, 1))
@@ -128,12 +124,12 @@ describe('General functionality', function () {
       expect(
         dao
           .connect(this.bob)
-          .transferFrom(this.alice.address, this.carol.address, 1)
+          .transferFrom(this.alice.address, this.carol.address, 1),
       )
         .to.emit(dao, 'Transfer')
         .withArgs(this.alice.address, this.carol.address, 1);
       expect(
-        await this.dao.allowance(this.alice.address, this.bob.address)
+        await this.dao.allowance(this.alice.address, this.bob.address),
       ).to.equal(UINT256_MAX);
     });
 
@@ -146,7 +142,7 @@ describe('General functionality', function () {
       await expect(
         dao
           .connect(this.bob)
-          .transferFrom(this.alice.address, this.carol.address, overHalf)
+          .transferFrom(this.alice.address, this.carol.address, overHalf),
       )
         .to.emit(dao, 'Transfer')
         .withArgs(this.alice.address, this.carol.address, overHalf);
@@ -154,7 +150,7 @@ describe('General functionality', function () {
       await expect(
         dao
           .connect(this.bob)
-          .transferFrom(this.alice.address, this.carol.address, overHalf)
+          .transferFrom(this.alice.address, this.carol.address, overHalf),
       ).to.be.revertedWith('Low allowance');
     });
   });
@@ -176,14 +172,14 @@ describe('General functionality', function () {
             amount,
             nonce,
             deadline,
-          ]
-        )
+          ],
+        ),
       );
       const digest = keccak256(
         solidityPack(
           ['string', 'bytes32', 'bytes32'],
-          ['\x19\x01', DOMAIN_SEPARATOR, dataHash]
-        )
+          ['\x19\x01', DOMAIN_SEPARATOR, dataHash],
+        ),
       );
       return ecsign(arrayify(digest), arrayify(from.privateKey));
     };
@@ -197,17 +193,17 @@ describe('General functionality', function () {
         lisa,
         this.fred,
         halfEth,
-        deadline
+        deadline,
       );
 
       await expect(
-        dao.permit(lisa.address, this.fred.address, halfEth, deadline, v, r, s)
+        dao.permit(lisa.address, this.fred.address, halfEth, deadline, v, r, s),
       )
         .to.emit(dao, 'Approval')
         .withArgs(lisa.address, this.fred.address, halfEth);
 
       expect(await dao.allowance(lisa.address, this.fred.address)).to.equal(
-        halfEth
+        halfEth,
       );
     });
 
@@ -219,17 +215,17 @@ describe('General functionality', function () {
         lisa,
         this.fred,
         BN(1),
-        deadline
+        deadline,
       );
 
       await expect(
-        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s)
+        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s),
       )
         .to.emit(dao, 'Approval')
         .withArgs(lisa.address, this.fred.address, BN(1));
 
       await expect(
-        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s)
+        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s),
       ).to.be.revertedWith('Invalid Sig');
     });
 
@@ -241,11 +237,11 @@ describe('General functionality', function () {
         lisa,
         this.fred,
         BN(1),
-        deadline
+        deadline,
       );
 
       await expect(
-        dao.permit(ZERO_ADDR, this.fred.address, BN(1), deadline, v, r, s)
+        dao.permit(ZERO_ADDR, this.fred.address, BN(1), deadline, v, r, s),
       ).to.be.revertedWith('Zero owner');
     });
 
@@ -257,13 +253,13 @@ describe('General functionality', function () {
         lisa,
         this.fred,
         BN(1),
-        deadline
+        deadline,
       );
 
       await incTime(3601);
 
       await expect(
-        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s)
+        dao.permit(lisa.address, this.fred.address, BN(1), deadline, v, r, s),
       ).to.be.revertedWith('Expired');
     });
   });

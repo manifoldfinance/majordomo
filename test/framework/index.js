@@ -58,7 +58,7 @@ async function createFixture(deployments, thisObject, stepsFunction) {
 
       const getContractFunction = async function (contract_name) {
         thisObject[contract_name] = await ethers.getContractFactory(
-          contract_name
+          contract_name,
         );
         thisObject[contract_name].thisObject = thisObject;
         thisObject[contract_name].new = async function (name, ...params) {
@@ -85,16 +85,12 @@ async function createFixture(deployments, thisObject, stepsFunction) {
         await getContractFunction(contract_name);
         const contract = await thisObject[contract_name].new(
           var_name,
-          ...params
+          ...params,
         );
         return contract;
       };
 
-      const attachFunction = async function (
-        var_name,
-        contract_name,
-        address
-      ) {
+      const attachFunction = async function (var_name, contract_name, address) {
         await getContractFunction(contract_name);
         const contract = thisObject[contract_name].at(var_name, address);
         return contract;
@@ -108,7 +104,7 @@ async function createFixture(deployments, thisObject, stepsFunction) {
 
       await stepsFunction(cmd);
       return cmd;
-    }
+    },
   );
 }
 

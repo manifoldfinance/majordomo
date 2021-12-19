@@ -39,4 +39,3 @@ interface IERC20 {
         bytes32 s
     ) external;
 }
-

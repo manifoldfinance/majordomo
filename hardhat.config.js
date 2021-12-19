@@ -1,5 +1,5 @@
 module.exports = require('@boringcrypto/hardhat-framework').config.hardhat(
-  require('./settings').hardhat
+  require('./settings').hardhat,
 );
 const fs = require('fs');
 
@@ -22,7 +22,7 @@ function getSortedFiles(dependenciesGraph) {
   // If an entry has no dependency it won't be included in the graph, so we
   // add them and then dedup the array
   const withEntries = topologicalSortedNames.concat(
-    resolvedFiles.map((f) => f.sourceName)
+    resolvedFiles.map((f) => f.sourceName),
   );
 
   const sortedNames = [...new Set(withEntries)];
@@ -39,7 +39,7 @@ function getFileWithoutImports(resolvedFile) {
 
 subtask(
   'flat:get-flattened-sources',
-  'Returns all contracts and their dependencies flattened'
+  'Returns all contracts and their dependencies flattened',
 )
   .addOptionalParam('files', undefined, undefined, types.any)
   .addOptionalParam('output', undefined, undefined, types.string)
@@ -71,7 +71,7 @@ subtask(
     // Remove every line started with "// SPDX-License-Identifier:"
     flattened = flattened.replace(
       /SPDX-License-Identifier:/gm,
-      'License-Identifier:'
+      'License-Identifier:',
     );
 
     flattened = `// SPDX-License-Identifier: MIXED\n\n${flattened}`;
@@ -79,7 +79,10 @@ subtask(
     // Remove every line started with "pragma experimental ABIEncoderV2;" except the first one
     flattened = flattened.replace(
       /pragma experimental ABIEncoderV2;\n/gm,
-      ((i) => (m) => (!i++ ? m : ''))(0)
+      (
+        (i) => (m) =>
+          !i++ ? m : ''
+      )(0),
     );
 
     flattened = flattened.trim();
@@ -103,10 +106,9 @@ subtask('flat:get-dependency-graph')
       sourcePaths,
     });
 
-    const dependencyGraph = await run(
-      'compile:solidity:get-dependency-graph',
-      { sourceNames }
-    );
+    const dependencyGraph = await run('compile:solidity:get-dependency-graph', {
+      sourceNames,
+    });
 
     return dependencyGraph;
   });
@@ -116,19 +118,19 @@ task('flat', 'Flattens and prints contracts and their dependencies')
     'files',
     'The files to flatten',
     undefined,
-    types.inputFile
+    types.inputFile,
   )
   .addOptionalParam(
     'output',
     'Specify the output file',
     undefined,
-    types.string
+    types.string,
   )
   .setAction(async ({ files, output }, { run }) => {
     console.log(
       await run('flat:get-flattened-sources', {
         files,
         output,
-      })
+      }),
     );
   });

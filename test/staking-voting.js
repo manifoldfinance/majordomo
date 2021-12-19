@@ -15,11 +15,7 @@ describe('Staking and Voting', function () {
       const owners = [this.alice, this.bob, this.carol];
       const initialBalance = BN(10_000);
 
-      await cmd.deploy(
-        'token',
-        'MockERC20',
-        initialBalance.mul(owners.length)
-      );
+      await cmd.deploy('token', 'MockERC20', initialBalance.mul(owners.length));
 
       await cmd.deploy(
         'dao',
@@ -27,7 +23,7 @@ describe('Staking and Voting', function () {
         'MAJOR',
         'Majordomo',
         this.token.address,
-        this.bob.address
+        this.bob.address,
       );
 
       for (const acc of owners) {
@@ -55,7 +51,7 @@ describe('Staking and Voting', function () {
   it('Should mint all shares in a 1:1 ratio at first', async function () {
     // Less than they bought, but that does not matter:
     await expect(
-      this.dao.connect(this.alice).mint(stakeAliceHalf, this.fred.address)
+      this.dao.connect(this.alice).mint(stakeAliceHalf, this.fred.address),
     )
       .to.emit(this.token, 'Transfer')
       .withArgs(this.alice.address, this.dao.address, stakeAliceHalf)
@@ -69,7 +65,7 @@ describe('Staking and Voting', function () {
       .withArgs(ZERO_ADDR, this.bob.address, stakeBob);
 
     await expect(
-      this.dao.connect(this.carol).mint(stakeCarol, this.dirk.address)
+      this.dao.connect(this.carol).mint(stakeCarol, this.dirk.address),
     )
       .to.emit(this.token, 'Transfer')
       .withArgs(this.carol.address, this.dao.address, stakeCarol)
@@ -77,7 +73,7 @@ describe('Staking and Voting', function () {
       .withArgs(ZERO_ADDR, this.carol.address, stakeCarol);
 
     expect(await this.dao.balanceOf(this.alice.address)).to.equal(
-      stakeAliceHalf
+      stakeAliceHalf,
     );
     expect(await this.dao.balanceOf(this.bob.address)).to.equal(stakeBob);
     expect(await this.dao.balanceOf(this.carol.address)).to.equal(stakeCarol);
@@ -88,13 +84,13 @@ describe('Staking and Voting', function () {
     expect(await this.dao.votes(this.erin.address)).to.equal(stakeBob);
     expect(await this.dao.votes(this.fred.address)).to.equal(stakeAliceHalf);
     expect(await this.dao.userVote(this.alice.address)).to.equal(
-      this.fred.address
+      this.fred.address,
     );
     expect(await this.dao.userVote(this.carol.address)).to.equal(
-      this.dirk.address
+      this.dirk.address,
     );
     expect(await this.dao.userVote(this.bob.address)).to.equal(
-      this.erin.address
+      this.erin.address,
     );
 
     expect(await this.dao.totalSupply()).to.equal(total.sub(stakeAliceHalf));
@@ -103,10 +99,10 @@ describe('Staking and Voting', function () {
   it('Should vote ones entire balance on a new stake', async function () {
     await this.dao.connect(this.alice).mint(stakeAliceHalf, this.dirk.address);
     expect(await this.dao.userVote(this.alice.address)).to.equal(
-      this.dirk.address
+      this.dirk.address,
     );
     expect(await this.dao.votes(this.dirk.address)).to.equal(
-      stakeCarol.add(stakeAlice)
+      stakeCarol.add(stakeAlice),
     );
     expect(await this.dao.votes(this.fred.address)).to.equal(0);
 
@@ -115,13 +111,13 @@ describe('Staking and Voting', function () {
 
   it('Should lock staked tokens -- withdrawal', async function () {
     await expect(
-      this.dao.connect(this.bob).burn(this.fred.address, burnBob)
+      this.dao.connect(this.bob).burn(this.fred.address, burnBob),
     ).to.be.revertedWith('Locked');
   });
 
   it('Should lock staked tokens -- transfer', async function () {
     await expect(
-      this.dao.connect(this.bob).transfer(this.fred.address, 1n)
+      this.dao.connect(this.bob).transfer(this.fred.address, 1n),
     ).to.be.revertedWith('Locked');
   });
 
@@ -131,14 +127,14 @@ describe('Staking and Voting', function () {
     expect(await this.dao.votes(this.dirk.address)).to.equal(total);
     expect(await this.dao.votes(this.erin.address)).to.equal(0);
     expect(await this.dao.userVote(this.bob.address)).to.equal(
-      this.dirk.address
+      this.dirk.address,
     );
 
     // Change the vote again
     await this.dao.connect(this.bob).vote(this.alice.address);
     expect(await this.dao.votes(this.alice.address)).to.equal(stakeBob);
     expect(await this.dao.votes(this.dirk.address)).to.equal(
-      stakeAlice.add(stakeCarol)
+      stakeAlice.add(stakeCarol),
     );
 
     // Change it back to how it was:
@@ -146,13 +142,13 @@ describe('Staking and Voting', function () {
     expect(await this.dao.votes(this.erin.address)).to.equal(stakeBob);
     expect(await this.dao.votes(this.alice.address)).to.equal(0);
     expect(await this.dao.votes(this.dirk.address)).to.equal(
-      stakeAlice.add(stakeCarol)
+      stakeAlice.add(stakeCarol),
     );
   });
 
   it('Should correctly handle voting the same way twice', async function () {
     expect(await this.dao.userVote(this.bob.address)).to.equal(
-      this.erin.address
+      this.erin.address,
     );
 
     await this.dao.connect(this.bob).vote(this.erin.address);
@@ -170,12 +166,15 @@ describe('Staking and Voting', function () {
 
     // No change in count, but the preference gets recorded:
     expect(await this.dao.votes(this.erin.address)).to.equal(stakeBob);
-    expect(await this.dao.userVote(this.fred.address)).to.equal(this.erin.address);
+    expect(await this.dao.userVote(this.fred.address)).to.equal(
+      this.erin.address,
+    );
   });
 
   it('Should refuse withdrawing to the zero address', async function () {
-    await expect(this.dao.connect(this.bob).burn(ZERO_ADDR, 1))
-      .to.be.revertedWith('Zero address');
+    await expect(
+      this.dao.connect(this.bob).burn(ZERO_ADDR, 1),
+    ).to.be.revertedWith('Zero address');
   });
 
   it('Should update vote totals on withdrawal', async function () {
@@ -190,29 +189,29 @@ describe('Staking and Voting', function () {
 
     expect(await this.dao.totalSupply()).to.equal(total.sub(burnBob));
     expect(await this.dao.votes(this.erin.address)).to.equal(
-      stakeBob.sub(burnBob)
+      stakeBob.sub(burnBob),
     );
   });
 
   it('Should update vote totals on transfer', async function () {
     await expect(
-      this.dao.connect(this.alice).transfer(this.bob.address, transferAliceBob)
+      this.dao.connect(this.alice).transfer(this.bob.address, transferAliceBob),
     )
       .to.emit(this.dao, 'Transfer')
       .withArgs(this.alice.address, this.bob.address, transferAliceBob);
 
     expect(await this.dao.totalSupply()).to.equal(total.sub(burnBob));
     expect(await this.dao.votes(this.dirk.address)).to.equal(
-      stakeAlice.add(stakeCarol).sub(transferAliceBob)
+      stakeAlice.add(stakeCarol).sub(transferAliceBob),
     );
     expect(await this.dao.votes(this.erin.address)).to.equal(
-      stakeBob.sub(burnBob).add(transferAliceBob)
+      stakeBob.sub(burnBob).add(transferAliceBob),
     );
   });
 
   it('Should not set the operator to zero', async function () {
     await expect(this.dao.setOperator(ZERO_ADDR)).to.be.revertedWith(
-      'Zero operator'
+      'Zero operator',
     );
   });
 
@@ -220,13 +219,13 @@ describe('Staking and Voting', function () {
     // Dirk should have the most votes at this point; if we changed the numbers
     // such that this is no longer true, then the test becomes inaccurate:
     expect((await this.dao.votes(this.dirk.address)).mul(2)).to.gt(
-      await this.dao.totalSupply()
+      await this.dao.totalSupply(),
     );
     expect(await this.dao.operator()).to.equal(this.bob.address);
     expect(await this.dao.pendingOperator()).to.equal(ZERO_ADDR);
 
     await expect(this.dao.setOperator(this.alice.address)).to.be.revertedWith(
-      'Not enough votes'
+      'Not enough votes',
     );
 
     const setTime = await incTime(10);
@@ -238,10 +237,10 @@ describe('Staking and Voting', function () {
     expect(await this.dao.pendingOperatorTime()).to.equal(setTime + WEEK);
 
     await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
-      'Not enough votes'
+      'Not enough votes',
     );
     await expect(this.dao.setOperator(this.dirk.address)).to.be.revertedWith(
-      'Wait longer'
+      'Wait longer',
     );
 
     await incTime(WEEK + 1);
@@ -253,20 +252,20 @@ describe('Staking and Voting', function () {
 
   it('Should not count zero votes', async function () {
     expect(await this.dao.userVote(this.alice.address)).to.equal(
-      this.dirk.address
+      this.dirk.address,
     );
     const erinVotes = await this.dao.votes(this.erin.address);
     const totalVotes = await this.dao.totalSupply();
     expect(erinVotes.mul(2)).to.gt(totalVotes.sub(stakeAlice));
 
     await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
-      'Not enough votes'
+      'Not enough votes',
     );
 
     await this.dao.connect(this.alice).vote(this.alice.address);
 
     await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
-      'Not enough votes'
+      'Not enough votes',
     );
 
     await this.dao.connect(this.alice).vote(ZERO_ADDR);
@@ -290,7 +289,7 @@ describe('Staking and Voting', function () {
     expect(erinVotes.mul(2)).to.lte(totalSupply);
 
     await expect(this.dao.setOperator(this.erin.address)).to.be.revertedWith(
-      'Wait longer'
+      'Wait longer',
     );
 
     await this.dao.connect(this.alice).vote(this.alice.address);
@@ -311,9 +310,7 @@ describe('Staking and Voting', function () {
       await this.dao.connect(this.alice).mint(stakeAlice, this.dirk.address);
       await this.dao.connect(this.bob).mint(stakeBob, this.erin.address);
 
-      expect(await this.dao.balanceOf(this.alice.address)).to.equal(
-        stakeAlice
-      );
+      expect(await this.dao.balanceOf(this.alice.address)).to.equal(stakeAlice);
       expect(await this.dao.balanceOf(this.bob.address)).to.equal(stakeBob);
 
       // Free the staked tokens
@@ -336,7 +333,7 @@ describe('Staking and Voting', function () {
       await expect(
         this.dao
           .connect(this.erin)
-          .burnFrom(this.alice.address, this.alice.address, stakeAlice)
+          .burnFrom(this.alice.address, this.alice.address, stakeAlice),
       )
         .to.emit(this.dao, 'Transfer')
         .withArgs(this.alice.address, ZERO_ADDR, stakeAlice)
@@ -344,14 +341,14 @@ describe('Staking and Voting', function () {
         .withArgs(
           this.dao.address,
           this.alice.address,
-          stakeAlice.mul(6).div(5)
+          stakeAlice.mul(6).div(5),
         );
     });
 
     it('Should reflect the new share price when staking', async function () {
       // Staking more tokens now reflects the new share price:
       await expect(
-        this.dao.connect(this.alice).mint(stakeAlice, this.dirk.address)
+        this.dao.connect(this.alice).mint(stakeAlice, this.dirk.address),
       )
         .to.emit(this.token, 'Transfer')
         .withArgs(this.alice.address, this.dao.address, stakeAlice)
@@ -374,7 +371,7 @@ describe('Staking and Voting', function () {
       await incTime(25 * 3600);
 
       await expect(
-        this.dao.connect(this.alice).burn(this.alice.address, sharesReceived)
+        this.dao.connect(this.alice).burn(this.alice.address, sharesReceived),
       )
         .to.emit(this.dao, 'Transfer')
         .withArgs(this.alice.address, ZERO_ADDR, sharesReceived)
@@ -396,7 +393,7 @@ describe('Staking and Voting', function () {
       // Test the case where we withdraw only part of the stake:
       const withdrawBob = stakeBob.div(2);
       await expect(
-        this.dao.connect(this.bob).burn(this.bob.address, withdrawBob)
+        this.dao.connect(this.bob).burn(this.bob.address, withdrawBob),
       )
         .to.emit(this.dao, 'Transfer')
         .withArgs(this.bob.address, ZERO_ADDR, withdrawBob)
@@ -404,7 +401,7 @@ describe('Staking and Voting', function () {
         .withArgs(
           this.dao.address,
           this.bob.address,
-          withdrawBob.mul(156).div(100)
+          withdrawBob.mul(156).div(100),
         );
 
       // ^ This happens to not have rounding errors, but it might. Deal with
