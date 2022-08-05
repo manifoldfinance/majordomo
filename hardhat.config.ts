@@ -1,32 +1,81 @@
+import '@nomiclabs/hardhat-etherscan';
+import '@nomiclabs/hardhat-ethers';
 import '@typechain/hardhat';
 import 'dotenv/config';
 import { HardhatUserConfig } from 'hardhat/types';
 
-const mnemonic = 'test test test test test test test test test test test junk';
+const test_mnemonic = 'test test test test test test test test test test test junk';
 
 const config: HardhatUserConfig = {
-  solidity: {
-    
-    version: '0.7.4',
+/**
+* @note Before version 0.8.6 omitting the 'enabled' key was not equivalent to setting 
+*   it to false and would actually disable all the optimizations.
+* @see: {@link https://docs.soliditylang.org/en/latest/using-the-compiler.html#compiler-input-and-output-json-description}
+*/
+solidity: {
+    version: '0.6.12',
     settings: {
       metadata: {
         bytecodeHash: 'none',
       },
       optimizer: {
-     // WARNING: Before version 0.8.6 omitting the 'enabled' key was not equivalent to setting
-     // it to false and would actually disable all the optimizations.
-     // see: https://docs.soliditylang.org/en/latest/using-the-compiler.html#compiler-input-and-output-json-description
         enabled: true,
-        runs: 200,
+        runs: 1_000,
         details: {
           yul: false,
         },
       },
+      outputSelection: {
+        '*': {
+          '*': [
+            'abi',
+            'evm.bytecode',
+            'evm.deployedBytecode',
+            'evm.methodIdentifiers',
+            'metadata',
+          ],
+          '': ['ast'],
+        },
+      },
     },
   },
+  networks: {
+    hardhat: {
+      allowUnlimitedContractSize: false,
+    },
+    mainnet: {
+      url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+    },
+    rinkeby: {
+      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
+    },
+    goerli: {
+      url: `https://goerli.infura.io/v3/${process.env.GOERLI_RPC}`,
+    },
+  },
+  paths: {
+    sources: './contracts',
+    tests: './test',
+    cache: './cache',
+    artifacts: './artifacts',
+  },
   typechain: {
-    outDir: 'src/',
+    outDir: 'types/',
     target: 'ethers-v5',
+  },
+};
+
+/** @note Compiler output configuration for verifying on Sourceify */
+export const defaultSolcOutputSelection = {
+  '*': {
+    '*': [
+      'abi',
+      'evm.bytecode',
+      'evm.deployedBytecode',
+      'evm.methodIdentifiers',
+      'metadata',
+    ],
+    '': ['ast'],
   },
 };
 
