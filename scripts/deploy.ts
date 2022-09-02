@@ -3,7 +3,7 @@
 // When running the script with `hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 import { ethers } from 'hardhat';
-import { Contract, ContractFlat } from 'ethers';
+import { Contract } from 'ethers';
 
 async function main(): Promise<void> {
   // Hardhat always runs the compile task when running scripts through it.
